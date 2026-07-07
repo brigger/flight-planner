@@ -257,6 +257,8 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     const warn=$('r-warn');
     if(oob.length){ warn.classList.add('show'); warn.textContent='⚠ '+oob.join('; ')+' — treat with extra caution.'; }
     else warn.classList.remove('show');
+    // publish takeoff conditions so the NAV Plan mini-pictures reflect this page
+    try{ localStorage.setItem('velis_da20_takeoff', JSON.stringify({pa:s.pa,oat:s.oat,weight:s.w,hw:s.hw,oh:s.oh})); }catch(e){}
     if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
   }
 
@@ -320,6 +322,6 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
   updateLanding();
 })();
 </script>
-<script src="plan_sync.js?v=19" defer></script>
+<script src="plan_sync.js?v=20" defer></script>
 </body>
 </html>

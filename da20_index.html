@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Velis Electro — Route Planner</title>
+<title>Diamond DA20-C1 — Route Planner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-  :root{--font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--bg-page:#f0ede8;--bg-card:#fff;--bg-sec:#f5f4f1;--bd:#e2ddd6;--bd2:#ccc8c0;--tx:#1a1a1a;--tx2:#6b6660;--rad-lg:14px;--rad-md:8px;--blue:#185FA5;}
+  :root{--font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--bg-page:#f0ede8;--bg-card:#fff;--bg-sec:#f5f4f1;--bd:#e2ddd6;--bd2:#ccc8c0;--tx:#1a1a1a;--tx2:#6b6660;--tx3:#9e9890;--rad-lg:14px;--rad-md:8px;--blue:#185FA5;--green:#3B6D11;--amber:#EF9F27;}
   *,*::before,*::after{box-sizing:border-box;}
   body{margin:0;background:var(--bg-page);font-family:var(--font);color:var(--tx);padding:0 0 48px;}
   .page-wrap{max-width:860px;margin:0 auto;padding:0 16px;}
@@ -39,6 +39,11 @@
   .alt-ticks button::before{content:'';display:block;width:1px;height:3px;background:var(--bd2);margin-bottom:2px;}
   .alt-ticks button:hover{color:var(--blue);}
   .alt-ticks button:hover::before{background:var(--blue);}
+  /* Segmented cruise-power selector (matches the Performance page). */
+  .pwr-btns{display:flex;gap:6px;flex:1;}
+  .pwr-btns button{flex:1;padding:9px;border:1px solid var(--bd);background:var(--bg-sec);border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;color:var(--tx2);cursor:pointer;transition:all .12s;}
+  .pwr-btns button:hover{border-color:var(--green);color:var(--green);}
+  .pwr-btns button.active{background:var(--green);color:#fff;border-color:var(--green);}
   .g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px;}
   .met{background:var(--bg-sec);border-radius:var(--rad-md);padding:9px 11px;}
   .met-l{font-size:10px;color:var(--tx2);margin:0 0 2px;}
@@ -49,7 +54,7 @@
   .seg-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px;}
   .seg-k{color:var(--tx2);}
   .seg-v{font-weight:500;color:var(--tx);}
-  .phase-track{display:flex;height:24px;border-radius:var(--rad-md);overflow:hidden;margin:8px 0 5px;}
+  .phase-track{display:flex;height:24px;border-radius:var(--rad-md);overflow:hidden;margin:8px 0 5px;background:var(--bg-sec);}
   .ps{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:#fff;transition:width 0.3s;white-space:nowrap;overflow:hidden;}
   .legend-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;}
   .li{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--tx2);}
@@ -66,6 +71,10 @@
   .soc-kwh{font-size:9px;color:var(--tx2);}
   .soc-label{font-size:9px;color:var(--tx2);text-align:center;line-height:1.2;max-width:52px;}
   .chain-note{font-size:12px;color:var(--tx2);background:var(--bg-sec);border-radius:var(--rad-md);padding:5px 10px;margin-bottom:8px;}
+  .wb-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .wb-badge{display:inline-block;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;}
+  .wb-ok{background:#EAF3DE;color:#27500A;}
+  .wb-over{background:#FCEBEB;color:#791F1F;}
   .det-phase{margin-bottom:10px;}
   .det-head{font-size:12px;font-weight:600;color:var(--tx);margin-bottom:1px;}
   .det-line{font-size:11px;color:var(--tx2);padding-left:16px;line-height:1.7;}
@@ -89,17 +98,21 @@
 <nav class="nav"><div class="nav-inner"></div></nav>
 
 <div class="page-wrap"><div class="wrap">
-  <div style="font-size:10px;color:var(--tx2);text-align:center;margin-bottom:8px;font-style:italic;">Corrections for wind components not (yet) included in calculations</div>
+  <div style="font-size:10px;color:var(--tx2);text-align:center;margin-bottom:8px;font-style:italic;">Planning estimate — POH is authoritative. Wind components not (yet) included in calculations.</div>
   <div class="perf-banner"><div class="tags" id="perf-tags"></div></div>
 
-  <!-- BATTERY -->
+  <!-- FUEL & CONDITIONS -->
   <div class="card">
-    <h3>Battery &amp; conditions</h3>
-    <div class="sr"><label>State of health (SOH)</label><input type="range" id="soh" min="60" max="100" step="1" value="95"><span class="sv" id="soh-v">95%</span></div>
-    <div class="sr"><label>State of charge at departure (SOC)</label><input type="range" id="soc0" min="50" max="100" step="1" value="100"><span class="sv" id="soc0-v">100%</span></div>
-    <div class="sr"><label>Minimum reserve SOC</label><input type="range" id="res" min="10" max="40" step="1" value="30"><span class="sv" id="res-v">30%</span></div>
+    <h3>Fuel &amp; conditions</h3>
+    <div class="sr"><label>Fuel on board</label><input type="range" id="fuel" min="0" max="76" step="1" value="60"><span class="sv" id="fuel-v">60 L</span></div>
+    <div class="sr"><label>Weight excl. fuel (W&amp;B)</label><input type="range" id="weight" min="500" max="750" step="5" value="650"><span class="sv" id="weight-v">650 kg</span></div>
+    <div class="sr" style="align-items:flex-start;"><label style="padding-top:9px;">Cruise power (% BHP)</label><div class="pwr-btns" id="cruise-pwr">
+      <button type="button" data-pct="55">55 %</button>
+      <button type="button" data-pct="65" class="active">65 %</button>
+      <button type="button" data-pct="75">75 %</button>
+    </div></div>
     <div class="sr"><label>Outside air temperature (OAT)</label><input type="range" id="oat" min="-30" max="45" step="1" value="15"><span class="sv" id="oat-v">+15 °C</span></div>
-    <div class="sr"><label>Cruise power</label><input type="range" id="cruise-kw" min="20" max="36" step="1" value="36"><span class="sv" id="cruise-kw-v">36 kW</span></div>
+    <div class="sr"><label>Reserve (minutes)</label><input type="range" id="reserve" min="30" max="60" step="5" value="45"><span class="sv" id="reserve-v">45 min</span></div>
   </div>
 
   <!-- DEPARTURE -->
@@ -120,10 +133,10 @@
     <div class="chain-note" id="dest-chain">Starting altitude: —</div>
     <div class="sr"><label>Destination altitude (ft AMSL)</label><div class="alt-wrap"><input type="range" id="arr-alt" min="0" max="8000" step="25" value="1525"><div class="alt-ticks" data-for="arr-alt"></div></div><span class="sv" id="arr-alt-v">1,525 ft</span></div>
     <div class="sr"><label>Distance to destination (nm)</label><input type="range" id="arr-dist" min="1" max="120" step="1" value="22"><span class="sv" id="arr-dist-v">22 nm</span></div>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:16px;">
+    <div style="margin-top:8px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <span style="font-size:12px;color:var(--tx2);font-weight:500;">Arrival:</span>
-      <label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="approach" value="straight" style="accent-color:#3B6D11;"> Straight-in (5 %SOC)</label>
-      <label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="approach" value="pattern" checked style="accent-color:#3B6D11;"> Traffic pattern (12 %SOC)</label>
+      <label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="approach" value="straight" style="accent-color:#3B6D11;"> Straight-in</label>
+      <label style="font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="radio" name="approach" value="pattern" checked style="accent-color:#3B6D11;"> Traffic pattern</label>
     </div>
   </div>
 
@@ -133,12 +146,12 @@
       <h3 style="margin:0;">Flight profile</h3>
       <button type="button" class="tool-btn" id="btn-optimize-alt" title="Adjust intermediate-leg altitudes to a feasible climb/descent profile (highest, departure and destination altitudes are kept).">Optimize ALT</button>
     </div>
-    <div class="sr" title="Real-world climb performance is typically better than book values. Scales the POH ROC up by the chosen percentage; climb time, distance and SOC consumption all follow."><label>Performance adjustment (climb)</label><input type="range" id="perf-adj" min="0" max="10" step="1" value="0"><span class="sv" id="perf-adj-v">+0%</span></div>
+    <div class="sr" title="Real-world climb performance is typically better than book values. Scales the ROC up by the chosen percentage; climb time, distance and fuel burn all follow."><label>Performance adjustment (climb)</label><input type="range" id="perf-adj" min="0" max="10" step="1" value="0"><span class="sv" id="perf-adj-v">+0%</span></div>
     <div style="overflow-x:auto;"><svg id="svg" viewBox="0 0 760 240" width="100%" style="display:block;min-width:320px;"></svg></div>
   </div>
 
-  <!-- SOC WATERFALL -->
-  <div class="card"><h3>SOC at each waypoint</h3><div class="soc-strip" id="soc-strip"></div><div style="font-size:10px;color:var(--tx2);margin-top:4px;">% of usable capacity remaining. Amber band = reserve floor.</div></div>
+  <!-- FUEL WATERFALL -->
+  <div class="card"><h3>Fuel remaining at each waypoint</h3><div class="soc-strip" id="soc-strip"></div><div style="font-size:10px;color:var(--tx2);margin-top:4px;">Litres in tank at each waypoint. Amber band = reserve floor.</div></div>
 
   <!-- SEGMENTS -->
   <div class="card"><h3>Segment breakdown</h3><div id="seg-grid" style="display:grid;gap:8px;"></div></div>
@@ -147,81 +160,171 @@
   <div class="card">
     <h3>Mission summary</h3>
     <div class="g4">
-      <div class="met"><p class="met-l">Usable energy</p><p class="met-v" id="r-usable">—</p><span class="met-u">kWh</span></div>
-      <div class="met"><p class="met-l">Energy used</p><p class="met-v" id="r-used">—</p><span class="met-u">kWh</span></div>
+      <div class="met"><p class="met-l">Fuel on board</p><p class="met-v" id="r-fob">—</p><span class="met-u">litres</span></div>
+      <div class="met"><p class="met-l">Fuel used (+ taxi)</p><p class="met-v" id="r-used">—</p><span class="met-u">litres</span></div>
       <div class="met"><p class="met-l">Total distance</p><p class="met-v" id="r-dist">—</p><span class="met-u">nm</span></div>
       <div class="met"><p class="met-l">Total flight time</p><p class="met-v" id="r-time">—</p><span class="met-u">h:mm</span></div>
     </div>
-    <h4>Energy distribution</h4>
+    <h4>Fuel distribution</h4>
     <div class="phase-track" id="phase-track"></div>
     <div class="legend-row" id="legend-row"></div>
     <div class="msg msg-ok" id="msg-ok"></div>
     <div class="msg msg-warn" id="msg-warn"></div>
     <div class="msg msg-err" id="msg-err"></div>
+    <div style="font-size:10px;color:var(--tx2);margin-top:8px;" id="endur-note"></div>
+  </div>
+
+  <!-- WEIGHT & BALANCE -->
+  <div class="card">
+    <h3>Weight &amp; balance</h3>
+    <div class="wb-row">
+      <div style="font-size:12px;color:var(--tx2);line-height:1.7;">
+        Empty + payload: <strong style="color:var(--tx);" id="wb-excl">—</strong> kg<br>
+        Fuel (<span id="wb-fuel-l">—</span> L × 0.72): <strong style="color:var(--tx);" id="wb-fuel-kg">—</strong> kg<br>
+        Take-off weight: <strong style="color:var(--tx);" id="wb-total">—</strong> kg &nbsp;/&nbsp; MTOW 800 kg
+      </div>
+      <span class="wb-badge" id="wb-badge">—</span>
+    </div>
   </div>
 
   <!-- DETAILED CALC -->
-  <div class="card"><h3>Detailed %SOC calculation</h3><div class="note" style="margin-bottom:10px;" id="det-header"></div><div id="det-calc"></div></div>
+  <div class="card"><h3>Detailed fuel calculation</h3><div class="note" style="margin-bottom:10px;" id="det-header"></div><div id="det-calc"></div></div>
 
   <div class="card note">
-    <strong style="color:var(--tx);">Model — Pipistrel Velis Electro</strong><br>
-    Nominal: 24.8 kWh. Climb: 48 kW at V<sub>y</sub>, ROC from POH table (1,000 ft bands, altitude &amp; ISA interpolated).
-    Cruise: power &amp; speed from POH table. Descent: power-off glide (15:1, 0 kW).
-    %SOC from POH energy tables, scaled by actual conditions.
+    <strong style="color:var(--tx);">Model — Diamond DA20-C1 (Continental IO-240-B)</strong><br>
+    Max usable fuel 76 L. Climb: 75 KIAS, ROC from Fig 5.5 (equivalent-altitude nomogram), fuel at full power (2,800 RPM) from Table 3.
+    Cruise: TAS &amp; fuel flow from POH Table 3 at the chosen %BHP (pressure-alt &amp; temperature interpolated). Descent: power-off glide (11:1, 73 KIAS, 0 L).
+    Fuel converted from US GPH to litres (× 3.785). Planning estimate — verify against the Flight Manual before flight.
   </div>
 </div></div>
 
 <script>
-/* ═══ POH DATA ═══ */
-const NM_FT=6076.12;     // feet per nautical mile
-const REF_ROC=600;       // reference ROC the POH per-1000-ft SOC values were calibrated to (100 sec / 1000 ft).
-                         // Climb SOC is scaled by REF_ROC / actualROC because climb time scales as 1/ROC.
+/* ═══ CONSTANTS ═══ */
+const NM_FT=6076.12;            // feet per nautical mile
+const GPH2LPH=3.78541;          // US gallons/hr → litres/hr
+const AVGAS_KG_PER_L=0.72;      // AVGAS density
+const MTOW=800;                 // kg
+const FUEL_CAP=76;              // L usable
+const GLIDE_RATIO=11;
+const GLIDE_KIAS=73;
+const CLIMB_KIAS=75;
+const TAXI_L=1.5;               // fixed start/taxi allowance
 
-// SVG flight-profile dimensions. Single source of truth: drawSVG() destructures
-// these, and the SOC strip below the chart computes its bar x-positions from
-// PL / PR so it lines up with the chart's waypoint dots.
+// SVG flight-profile dimensions (single source of truth — the fuel strip
+// mirrors PL/PR so its bars line up with the chart's waypoint dots).
 const SVG_DIMS = {W:760, H:240, PL:52, PR:20, PT:28, PB:78};
-let NOM,ROC_ALT,ROC_ISA,ROC_DATA,PWR,SOH_PTS,SOC_CLIMB_1K,SOC_TAKEOFF,SOC_CRUISE;
 
-async function loadPOH(){
-  const p=await(await fetch('velis_electro_poh.json')).json();
-  NOM=p.battery.nominal_kwh; ROC_ALT=p.roc.altitude_ft; ROC_ISA=p.roc.isa_dev_c; ROC_DATA=p.roc.fpm;
-  PWR=p.cruise_power.settings; SOH_PTS=p.soc.soh_pct;
-  const ph=p.soc.phases;
-  SOC_TAKEOFF=ph.find(x=>x.group==='takeoff').vals;
-  SOC_CLIMB_1K=ph.find(x=>x.group==='climb').vals;
-  SOC_CRUISE={}; ph.filter(x=>x.group==='cruise').forEach(x=>{SOC_CRUISE[x.kw]=x.vals;});
+let CR=null, C=null;            // cruise + climb JSON
+
+async function loadData(){
+  const [cr,c]=await Promise.all([
+    fetch('da20_c1_cruise.json').then(r=>r.json()),
+    fetch('da20_c1_climb.json').then(r=>r.json()),
+  ]);
+  CR=cr; C=c;
 }
 
-/* ═══ INTERPOLATION ═══ */
-function lerp(a,b,t){return a+t*(b-a);}
-function bracket(pts,v){const c=Math.max(pts[0],Math.min(pts[pts.length-1],v));for(let i=0;i<pts.length-1;i++)if(c<=pts[i+1])return{i,t:(c-pts[i])/(pts[i+1]-pts[i])};return{i:pts.length-2,t:1};}
-function interpROC(a,d){const A=bracket(ROC_ALT,a),D=bracket(ROC_ISA,d);return lerp(lerp(ROC_DATA[A.i][D.i],ROC_DATA[A.i][D.i+1],D.t),lerp(ROC_DATA[A.i+1][D.i],ROC_DATA[A.i+1][D.i+1],D.t),A.t);}
-function interpSOH(v,s){s=Math.max(0,Math.min(100,s));for(let i=0;i<SOH_PTS.length-1;i++)if(s>=SOH_PTS[i+1])return lerp(v[i],v[i+1],(SOH_PTS[i]-s)/(SOH_PTS[i]-SOH_PTS[i+1]));return v[v.length-1];}
-function interpCruiseKts(kw){kw=Math.max(PWR[0].kw,Math.min(PWR[PWR.length-1].kw,kw));for(let i=0;i<PWR.length-1;i++)if(kw<=PWR[i+1].kw)return lerp(PWR[i].kias,PWR[i+1].kias,(kw-PWR[i].kw)/(PWR[i+1].kw-PWR[i].kw));return PWR[PWR.length-1].kias;}
-function socCruise10min(kw,s){const ps=Object.keys(SOC_CRUISE).map(Number).sort((a,b)=>a-b);kw=Math.max(ps[0],Math.min(ps[ps.length-1],kw));for(let i=0;i<ps.length-1;i++)if(kw<=ps[i+1]){const t=(kw-ps[i])/(ps[i+1]-ps[i]);return lerp(interpSOH(SOC_CRUISE[ps[i]],s),interpSOH(SOC_CRUISE[ps[i+1]],s),t);}return interpSOH(SOC_CRUISE[ps[ps.length-1]],s);}
-function getIsaDev(oat,sAlt){return oat-(15-2*sAlt/1000);}
-
-/* ═══ PHASE CALCULATIONS ═══ */
-function calcClimb(from,to,oat,sohPct,vyKts,surfAlt,adjPct){
-  if(to<=from)return{min:0,soc:0,nm:0,delta:0,bands:[],isaDev:0,refSoc:0};
-  const delta=to-from,refSoc=interpSOH(SOC_CLIMB_1K,sohPct),isaDev=getIsaDev(oat,surfAlt);
-  const factor=1+(+adjPct||0)/100;
-  let alt=from,tMin=0,tSoc=0,tNm=0;const bands=[];
-  while(alt<to){const top=Math.min(alt+1000,to),bd=top-alt,mid=(alt+top)/2,roc=interpROC(mid,isaDev)*factor,mn=bd/roc,nm=vyKts*(mn/60),sc=(bd/1000)*refSoc*(REF_ROC/roc);
-    bands.push({from:alt,to:top,delta:bd,roc:Math.round(roc),min:mn,nm,soc:sc});tMin+=mn;tSoc+=sc;tNm+=nm;alt=top;}
-  return{min:tMin,soc:tSoc,nm:tNm,delta,bands,isaDev,refSoc};
+/* ═══ INTERPOLATION (copied from da20_performance.html) ═══ */
+function lin(xs,ys,x){
+  if(x<=xs[0]){const s=(ys[1]-ys[0])/(xs[1]-xs[0]);return ys[0]+s*(x-xs[0]);}
+  if(x>=xs[xs.length-1]){const n=xs.length;const s=(ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]);return ys[n-1]+s*(x-xs[n-1]);}
+  for(let i=0;i<xs.length-1;i++){if(x>=xs[i]&&x<=xs[i+1]){const t=(x-xs[i])/(xs[i+1]-xs[i]);return ys[i]+t*(ys[i+1]-ys[i]);}}
+  return ys[ys.length-1];
 }
-function calcDescent(from,to,gr,vKts){if(from<=to)return{min:0,soc:0,nm:0,delta:0};const d=from-to,nm=(d*gr)/NM_FT,mn=(nm/vKts)*60;return{min:mn,soc:0,nm,delta:d};}
-function calcCruise(dist,kw,kts,soh){if(dist<=0)return{min:0,soc:0,soc10:0};const mn=(dist/kts)*60,s10=socCruise10min(Math.min(kw,35),soh);return{min:mn,soc:(mn/10)*s10,soc10:s10};}
+const stdT=alt=>15-1.98*alt/1000;
+
+// ── cruise model: Table-3 KTAS & GPH at a target %bhp ──
+function perfAtBhpAlt(alt,pct,oat){
+  const d=CR.data[String(alt)], dev=Math.max(-20,Math.min(10,oat-stdT(alt)));
+  const bhp=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.bhp[ri],dev));
+  const ktas=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.ktas[ri],dev));
+  const gph=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.gph[ri],dev));
+  const maxB=Math.max.apply(null,bhp), minB=Math.min.apply(null,bhp);
+  const q=Math.max(minB,Math.min(maxB,pct));               // clamp to table range (no over-extrapolation past full throttle)
+  const idx=bhp.map((_,i)=>i).sort((a,b)=>bhp[a]-bhp[b]);   // ascending %bhp for lin()
+  const bs=idx.map(i=>bhp[i]);
+  return {ktas:lin(bs,idx.map(i=>ktas[i]),q), gph:lin(bs,idx.map(i=>gph[i]),q), maxBhp:maxB};
+}
+function perfAtBhp(pa,pct,oat){
+  const A=CR.alt_ft; let a0=A[0],a1=A[A.length-1];
+  for(let i=0;i<A.length-1;i++){if(pa>=A[i]&&pa<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+  if(pa<A[0]){a0=A[0];a1=A[1];} if(pa>A[A.length-1]){a0=A[A.length-2];a1=A[A.length-1];}
+  const v0=perfAtBhpAlt(a0,pct,oat),v1=perfAtBhpAlt(a1,pct,oat),f=a0===a1?0:(pa-a0)/(a1-a0),bl=(x,y)=>x+(y-x)*f;
+  return {ktas:bl(v0.ktas,v1.ktas),gph:bl(v0.gph,v1.gph),maxBhp:Math.min(v0.maxBhp,v1.maxBhp)};
+}
+function checklistRpm(pa,pct){             // ISA checklist RPM; null = full throttle (FT)
+  const ck=CR.checklist_rpm_isa, pi=ck.power_pct.indexOf(pct), A=ck.alt_ft;
+  if(pi<0) return null;
+  const pac=Math.max(A[0],Math.min(A[A.length-1],pa)); let a0=A[0],a1=A[A.length-1];
+  for(let i=0;i<A.length-1;i++){if(pac>=A[i]&&pac<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+  const r0=ck.rpm[String(a0)][pi], r1=ck.rpm[String(a1)][pi];
+  if(r0==null||r1==null) return null;
+  return a0===a1?r0:r0+(r1-r0)*(pac-a0)/(a1-a0);
+}
+// ── full-power (2800 RPM) fuel flow, for the climb ──
+function climbGphAlt(alt,oat){const d=CR.data[String(alt)],dev=Math.max(-20,Math.min(10,oat-stdT(alt)));return lin(CR.temp_dev_c,d.gph[0],dev);}
+function climbGph(pa,oat){
+  const A=CR.alt_ft; let a0=A[0],a1=A[A.length-1];
+  for(let i=0;i<A.length-1;i++){if(pa>=A[i]&&pa<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+  if(pa<A[0]){a0=A[0];a1=A[1];} if(pa>A[A.length-1]){a0=A[A.length-2];a1=A[A.length-1];}
+  const f=a0===a1?0:(pa-a0)/(a1-a0);
+  return climbGphAlt(a0,oat)+(climbGphAlt(a1,oat)-climbGphAlt(a0,oat))*f;
+}
+
+// ── climb model (equivalent-altitude nomogram → ROC line) ──
+function curveAt(pa,oat){
+  const oats=C.equiv_alt.oat_c, vals=C.equiv_alt.equiv_alt_ft[String(pa)], xs=[],ys=[];
+  for(let i=0;i<oats.length;i++){ if(vals[i]!=null){ xs.push(oats[i]); ys.push(vals[i]); } }
+  return lin(xs,ys,oat);
+}
+function equivAlt(pa,oat){
+  const pas=C.equiv_alt.pa_ft; let p0=pas[0],p1=pas[pas.length-1];
+  for(let i=0;i<pas.length-1;i++){ if(pa>=pas[i]&&pa<=pas[i+1]){ p0=pas[i]; p1=pas[i+1]; break; } }
+  if(pa<pas[0]){p0=pas[0];p1=pas[1];} if(pa>pas[pas.length-1]){p0=pas[pas.length-2];p1=pas[pas.length-1];}
+  const e0=curveAt(p0,oat),e1=curveAt(p1,oat);
+  return p0===p1?e0:e0+(e1-e0)*(pa-p0)/(p1-p0);
+}
+function roc(eqa){ const e=C.roc_line.equivalt_ft,r=C.roc_line.roc_fpm; return r[0]+(r[1]-r[0])/(e[1]-e[0])*(eqa-e[0]); }
+
+/* ═══ PHASE CALCULATIONS ═══
+   Each returns {min, fuelL, nm, ...}. */
+function calcClimb(from,to,oat,adjPct){
+  if(to<=from)return{min:0,fuelL:0,nm:0,delta:0,bands:[]};
+  const delta=to-from,factor=1+(+adjPct||0)/100;
+  let alt=from,tMin=0,tFuel=0,tNm=0;const bands=[];
+  while(alt<to){
+    const top=Math.min(alt+1000,to),bd=top-alt,mid=(alt+top)/2;
+    let rc=roc(equivAlt(mid,oat))*factor;
+    if(rc<1) rc=1;                                   // guard: at/above ceiling → tiny ROC flags an unrealistic climb
+    const mn=bd/rc;
+    const lph=climbGph(mid,oat)*GPH2LPH;             // full-power (2800 RPM) fuel flow
+    const fuel=(mn/60)*lph;
+    const tas=CLIMB_KIAS*(1+0.015*mid/1000), nm=tas*(mn/60);
+    bands.push({from:alt,to:top,delta:bd,roc:Math.round(rc),min:mn,nm,fuelL:fuel,lph});
+    tMin+=mn;tFuel+=fuel;tNm+=nm;alt=top;
+  }
+  return{min:tMin,fuelL:tFuel,nm:tNm,delta,bands};
+}
+function calcDescent(from,to){
+  if(from<=to)return{min:0,fuelL:0,nm:0,delta:0};
+  const d=from-to,nm=(d*GLIDE_RATIO)/NM_FT,mid=(from+to)/2;
+  const tas=GLIDE_KIAS*(1+0.015*mid/1000),mn=(nm/tas)*60;
+  return{min:mn,fuelL:0,nm,delta:d};
+}
+function calcCruise(dist,cruiseAlt,pct,oat){
+  if(dist<=0)return{min:0,fuelL:0,ktas:0,gph:0,lph:0,maxBhp:0};
+  const p=perfAtBhp(cruiseAlt,pct,oat);
+  const mn=(dist/p.ktas)*60,lph=p.gph*GPH2LPH,fuelL=(mn/60)*lph;
+  return{min:mn,fuelL,ktas:p.ktas,gph:p.gph,lph,maxBhp:p.maxBhp};
+}
 
 /* ═══ FORMAT ═══ */
 function n0(v){return Math.round(v);}
 function n1(v){return v.toFixed(1);}
 function mf(m){const h=Math.floor(m/60),mn=Math.round(m%60);return h>0?h+'h '+mn+'min':mn+' min';}
 function tf(m){const h=Math.floor(m/60),mn=Math.round(m%60);return h+':'+(mn<10?'0':'')+mn;}
-function socColor(p){return p<=15?'#E24B4A':p<=30?'#EF9F27':'#1D9E75';}
 function mfShort(m){const h=Math.floor(m/60),mn=Math.round(m%60);return h>0?h+'h'+mn+'m':mn+'m';}
+function fuelColor(rem,reserveL){if(rem<=0)return '#E24B4A';if(rem<=reserveL)return '#EF9F27';return '#1D9E75';}
 
 /* ═══ LEG COLORS ═══ */
 const LCOL=[
@@ -237,6 +340,7 @@ function lc(i){return LCOL[i%LCOL.length];}
 
 /* ═══ ROUTE STATE ═══ */
 let legs=[{alt:5200,dist:27,name:''}]; // at least one intermediate waypoint
+let cruisePct=65;
 
 const escAttr=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -258,7 +362,6 @@ function renderLegs(){
     </div>`;
   });
   c.innerHTML=html;
-  // Attach listeners
   c.querySelectorAll('.leg-alt,.leg-dist').forEach(el=>el.addEventListener('input',onLegInput));
   c.querySelectorAll('.del-btn').forEach(el=>el.addEventListener('click',onDeleteLeg));
   c.querySelectorAll('.leg-name').forEach(el=>el.addEventListener('input',onLegNameInput));
@@ -334,10 +437,17 @@ document.getElementById('add-leg-btn').addEventListener('click',()=>{
   renderLegs(); saveState(); update();
 });
 
+/* ═══ CRUISE POWER SELECTOR ═══ */
+function setCruiseButtons(){
+  document.querySelectorAll('#cruise-pwr button').forEach(b=>b.classList.toggle('active',+b.dataset.pct===cruisePct));
+}
+document.querySelectorAll('#cruise-pwr button').forEach(b=>b.addEventListener('click',()=>{
+  cruisePct=+b.dataset.pct;
+  setCruiseButtons();
+  saveState(); update();
+}));
+
 /* ═══ MAIN UPDATE ═══ */
-// Resolve the user-visible label for a route waypoint.
-//   wpLabel(i) — for results[i]: legs[0..N-1] then DEST at index N
-//   depLabel() — for the departure
 function depLabel(){
   return (document.getElementById('dep-name').value||'').trim()||'Departure';
 }
@@ -348,47 +458,34 @@ function wpLabel(i){
   return (document.getElementById('arr-name').value||'').trim()||'Destination';
 }
 function update(){
-  const cruiseKw=+document.getElementById('cruise-kw').value;
-  localStorage.setItem('velis_cruise_kw',cruiseKw);
-  document.getElementById('cruise-kw-v').textContent=cruiseKw+' kW';
-  const vyKts=parseFloat(localStorage.getItem('velis_vy')??'75');
-  const vglideKts=parseFloat(localStorage.getItem('velis_vglide')??'70');
-  const glideR=parseFloat(localStorage.getItem('velis_glide_ratio')??'15');
-  const cruiseKts=interpCruiseKts(cruiseKw);
-
-  const soh=+document.getElementById('soh').value/100;
-  const soc0=+document.getElementById('soc0').value/100;
-  const resPct=+document.getElementById('res').value/100;
+  if(!CR||!C) return;
+  const fuelOnBoard=+document.getElementById('fuel').value;
+  const weightExclFuel=+document.getElementById('weight').value;
   const oat=+document.getElementById('oat').value;
+  const reserveMin=+document.getElementById('reserve').value;
   const depAlt=+document.getElementById('dep-alt').value;
   const arrAlt=+document.getElementById('arr-alt').value;
   const arrDist=+document.getElementById('arr-dist').value;
   const approach=document.querySelector('input[name="approach"]:checked').value;
-  const approachSoc=approach==='pattern'?12:5;
-  const sohPct=soh*100, usable=NOM*soh;
   const perfAdj=+document.getElementById('perf-adj').value;
 
-  // Save to localStorage for other pages
-  localStorage.setItem('velis_soh',Math.round(sohPct));
-  localStorage.setItem('velis_oat',oat);
-  localStorage.setItem('velis_dep_alt',depAlt);
-  localStorage.setItem('velis_perf_adj',perfAdj);
-  document.getElementById('perf-adj-v').textContent=(perfAdj>0?'+':'')+perfAdj+'%';
-
   // Display
-  document.getElementById('soh-v').textContent=Math.round(sohPct)+'%';
-  document.getElementById('soc0-v').textContent=Math.round(soc0*100)+'%';
-  document.getElementById('res-v').textContent=Math.round(resPct*100)+'%';
+  document.getElementById('fuel-v').textContent=fuelOnBoard+' L';
+  document.getElementById('weight-v').textContent=weightExclFuel+' kg';
   document.getElementById('oat-v').textContent=(oat>=0?'+':'')+oat+' °C';
+  document.getElementById('reserve-v').textContent=reserveMin+' min';
   document.getElementById('dep-alt-v').textContent=depAlt.toLocaleString()+' ft';
   document.getElementById('arr-alt-v').textContent=arrAlt.toLocaleString()+' ft';
   document.getElementById('arr-dist-v').textContent=arrDist+' nm';
+  document.getElementById('perf-adj-v').textContent=(perfAdj>0?'+':'')+perfAdj+'%';
 
-  // Perf banner
+  // Perf banner — representative cruise at a mid altitude
+  const bannerAlt=Math.max(2000,depAlt);
+  const bp=perfAtBhp(bannerAlt,cruisePct,oat);
   document.getElementById('perf-tags').innerHTML=
-    `<span class="perf-tag">Cruise ${cruiseKw} kW · ${cruiseKts.toFixed(0)} kts</span>`+
-    `<span class="perf-tag">V<sub>y</sub> ${vyKts} kts</span>`+
-    `<span class="perf-tag">Glide ${glideR}:1</span>`+
+    `<span class="perf-tag">Cruise ${cruisePct}% · ${bp.ktas.toFixed(0)} kt · ${(bp.gph*GPH2LPH).toFixed(1)} L/hr</span>`+
+    `<span class="perf-tag">Climb ${CLIMB_KIAS} KIAS</span>`+
+    `<span class="perf-tag">Glide ${GLIDE_RATIO}:1</span>`+
     (perfAdj>0?`<span class="perf-tag" style="background:#EAF3DE;color:#27500A;">ROC +${perfAdj}%</span>`:'');
 
   // Chain notes for legs
@@ -402,115 +499,131 @@ function update(){
   const destLegNum=legs.length+1;
   document.getElementById('arr-name').placeholder='Destination (Leg '+destLegNum+')';
 
-  // ═══ CALCULATIONS ═══
-  const toSoc=interpSOH(SOC_TAKEOFF,sohPct);
-  const refClimb=interpSOH(SOC_CLIMB_1K,sohPct);
-  const cru10=socCruise10min(Math.min(cruiseKw,35),sohPct);
-
+  // ═══ WALK THE LEGS ═══
   const results=[];
   prevAlt=depAlt;
-  // Intermediate legs
-  legs.forEach((leg,i)=>{
-    let trans;
-    if(leg.alt>prevAlt) trans=calcClimb(prevAlt,leg.alt,oat,sohPct,vyKts,depAlt,perfAdj);
-    else trans=calcDescent(prevAlt,leg.alt,glideR,vglideKts);
-    const cruDist=Math.max(0,leg.dist-trans.nm);
-    const cru=calcCruise(cruDist,cruiseKw,cruiseKts,sohPct);
-    let soc=trans.soc+cru.soc;
-    if(i===0) soc+=toSoc; // takeoff on first leg
-    results.push({trans,cru,cruDist,soc,min:trans.min+cru.min,isClimb:leg.alt>prevAlt,wpAlt:leg.alt,prevAlt,dist:leg.dist});
-    prevAlt=leg.alt;
-  });
-  // Final leg to destination
-  const fTrans=calcDescent(prevAlt,arrAlt,glideR,vglideKts);
-  const fCruDist=Math.max(0,arrDist-fTrans.nm);
-  const fCru=calcCruise(fCruDist,cruiseKw,cruiseKts,sohPct);
-  results.push({trans:fTrans,cru:fCru,cruDist:fCruDist,soc:fTrans.soc+fCru.soc+approachSoc,min:fTrans.min+fCru.min,isClimb:arrAlt>prevAlt,wpAlt:arrAlt,prevAlt,dist:arrDist});
+  const buildLeg=(targetAlt,dist)=>{
+    const isClimb=targetAlt>prevAlt;
+    const cruiseAlt=Math.max(prevAlt,targetAlt);
+    const trans=isClimb?calcClimb(prevAlt,targetAlt,oat,perfAdj):calcDescent(prevAlt,targetAlt);
+    const cruDist=Math.max(0,dist-trans.nm);
+    const cru=calcCruise(cruDist,cruiseAlt,cruisePct,oat);
+    return {trans,cru,cruDist,cruiseAlt,fuelL:trans.fuelL+cru.fuelL,min:trans.min+cru.min,isClimb,wpAlt:targetAlt,prevAlt,dist};
+  };
+  legs.forEach(leg=>{ const r=buildLeg(leg.alt,leg.dist); results.push(r); prevAlt=leg.alt; });
+  results.push(buildLeg(arrAlt,arrDist));
 
-  const totalSoc=results.reduce((s,r)=>s+r.soc,0);
-  const totalKwh=(totalSoc/100)*usable;
+  // ═══ TOTALS ═══
+  const flightFuel=results.reduce((s,r)=>s+r.fuelL,0);
+  const usedL=flightFuel+TAXI_L;
   const totalDist=results.reduce((s,r)=>s+r.dist,0);
   const totalMin=results.reduce((s,r)=>s+r.min,0);
-  const startSocPct=soc0*100;
 
-  // Expose computed totals for the Endurance Calculator page
-  localStorage.setItem('velis_total_min',Math.round(totalMin));
-  localStorage.setItem('velis_total_kwh',totalKwh.toFixed(2));
-  localStorage.setItem('velis_total_dist',Math.round(totalDist));
-  localStorage.setItem('velis_usable_kwh',usable.toFixed(2));
-  localStorage.setItem('velis_reserve_pct',Math.round(resPct*100));
-  localStorage.setItem('velis_soc0_pct',Math.round(soc0*100));
+  // Reserve fuel flow — cruise L/hr at the final leg's cruise altitude
+  const reserveAlt=results[results.length-1].cruiseAlt;
+  const rp=perfAtBhp(reserveAlt,cruisePct,oat);
+  const cruiseLPH=rp.gph*GPH2LPH;
+  const reserveL=(reserveMin/60)*cruiseLPH;
+  const remainingL=fuelOnBoard-usedL;                 // at destination, before reserve
+  const requiredL=usedL+reserveL;
+  const marginL=fuelOnBoard-requiredL;
+  const marginPct=requiredL>0?marginL/requiredL*100:0;
+  const enduranceHr=cruiseLPH>0?fuelOnBoard/cruiseLPH:0;
+  const rangeNm=enduranceHr*rp.ktas;
 
-  // SOC at each waypoint
-  const socs=[startSocPct];
-  let run=startSocPct;
-  results.forEach(r=>{run=Math.max(0,run-r.soc);socs.push(run);});
-
-  // Summary
-  document.getElementById('r-usable').textContent=usable.toFixed(1);
-  document.getElementById('r-used').textContent=totalKwh.toFixed(1);
+  // Summary tiles
+  document.getElementById('r-fob').textContent=n1(fuelOnBoard);
+  document.getElementById('r-used').textContent=n1(usedL);
   document.getElementById('r-dist').textContent=Math.round(totalDist);
   document.getElementById('r-time').textContent=tf(totalMin);
 
-  // Phase track + legend
-  const socToKwh=s=>(s/100)*usable;
-  const pw=k=>(Math.max(0,Math.min(k/usable,1))*100).toFixed(1)+'%';
-  const reserveKwh=usable*resPct, startKwh=usable*soc0, mission=startKwh-reserveKwh;
+  // ═══ FUEL PHASE-TRACK ═══
+  const pw=l=>(Math.max(0,Math.min(l/FUEL_CAP,1))*100).toFixed(2)+'%';
   let ptHTML='',lgHTML='';
+  ptHTML+=`<div class="ps" style="background:#8b847b;width:${pw(TAXI_L)};" title="Taxi/start ${n1(TAXI_L)} L"></div>`;
   results.forEach((r,i)=>{
     const col=i<results.length-1?lc(i):DEST_COL;
     const ln=i+1;
-    ptHTML+=`<div class="ps" style="background:${col.c1};width:${pw(socToKwh(r.trans.soc))};">${r.trans.soc>5?(r.isClimb?'C':'D')+ln:''}</div>`;
-    ptHTML+=`<div class="ps" style="background:${col.c2};width:${pw(socToKwh(r.cru.soc))};">${r.cru.soc>5?'O'+ln:''}</div>`;
+    ptHTML+=`<div class="ps" style="background:${col.c1};width:${pw(r.trans.fuelL)};">${r.trans.fuelL>1.2?(r.isClimb?'C':'D')+ln:''}</div>`;
+    ptHTML+=`<div class="ps" style="background:${col.c2};width:${pw(r.cru.fuelL)};">${r.cru.fuelL>1.2?'O'+ln:''}</div>`;
     lgHTML+=`<div class="li"><div class="ld" style="background:${col.c1};"></div>${r.isClimb?'Climb':'Desc'} ${ln}</div>`;
     lgHTML+=`<div class="li"><div class="ld" style="background:${col.c2};"></div>Cruise ${ln}</div>`;
   });
-  ptHTML+=`<div class="ps" style="background:#EF9F27;width:${pw(reserveKwh)};">${resPct>0.07?'Res':''}</div>`;
-  const deficit=Math.max(0,totalKwh-mission);
-  if(deficit>0)ptHTML+=`<div class="ps" style="background:#E24B4A;width:${pw(Math.min(deficit,usable))};">Def</div>`;
+  ptHTML+=`<div class="ps" style="background:#EF9F27;width:${pw(reserveL)};" title="Reserve ${n1(reserveL)} L">${reserveL>2.5?'Res':''}</div>`;
+  const leftover=fuelOnBoard-usedL-reserveL;
+  if(leftover>0) ptHTML+=`<div class="ps" style="background:#1D9E75;width:${pw(leftover)};" title="Spare ${n1(leftover)} L">${leftover>2.5?'Left':''}</div>`;
+  else if(leftover<0) ptHTML+=`<div class="ps" style="background:#E24B4A;width:${pw(Math.abs(leftover))};" title="Deficit ${n1(Math.abs(leftover))} L">Def</div>`;
+  lgHTML+=`<div class="li"><div class="ld" style="background:#8b847b;"></div>Taxi</div>`;
   lgHTML+=`<div class="li"><div class="ld" style="background:#EF9F27;"></div>Reserve</div>`;
-  lgHTML+=`<div class="li"><div class="ld" style="background:#E24B4A;"></div>Deficit</div>`;
+  lgHTML+=`<div class="li"><div class="ld" style="background:#1D9E75;"></div>Spare</div>`;
   document.getElementById('phase-track').innerHTML=ptHTML;
   document.getElementById('legend-row').innerHTML=lgHTML;
 
   // Messages
   ['msg-ok','msg-warn','msg-err'].forEach(id=>document.getElementById(id).style.display='none');
-  const margin=mission-totalKwh;
-  const marginPct=mission>0?Math.round(margin/mission*100):0;
-  const arrSoc=socs[socs.length-1];
-  if(margin<0){document.getElementById('msg-err').textContent='Not feasible. Deficit: '+n1(Math.abs(margin))+' kWh.';document.getElementById('msg-err').style.display='block';}
-  else if(marginPct<=12){document.getElementById('msg-warn').textContent='Tight. '+n1(margin)+' kWh ('+marginPct+'%) spare. Arrival SOC: '+Math.round(arrSoc)+'%.';document.getElementById('msg-warn').style.display='block';}
-  else{document.getElementById('msg-ok').textContent='Feasible. Margin: '+n1(margin)+' kWh ('+marginPct+'%). Arrival SOC: '+Math.round(arrSoc)+'%.';document.getElementById('msg-ok').style.display='block';}
+  const usedMsg=`Fuel used ${n1(usedL)} L (incl. ${n1(TAXI_L)} L taxi) · reserve ${n1(reserveL)} L (${reserveMin} min) · at destination ${n1(remainingL)} L in tank.`;
+  if(marginL<0){
+    document.getElementById('msg-err').innerHTML='Not feasible. Short by <strong>'+n1(Math.abs(marginL))+' L</strong>. '+usedMsg;
+    document.getElementById('msg-err').style.display='block';
+  }else if(marginPct<=10){
+    document.getElementById('msg-warn').innerHTML='Tight — only <strong>'+n1(marginL)+' L</strong> spare over reserve ('+Math.round(marginPct)+'%). '+usedMsg;
+    document.getElementById('msg-warn').style.display='block';
+  }else{
+    document.getElementById('msg-ok').innerHTML='Feasible. Margin over reserve: <strong>'+n1(marginL)+' L</strong> ('+Math.round(marginPct)+'%). '+usedMsg;
+    document.getElementById('msg-ok').style.display='block';
+  }
+  document.getElementById('endur-note').textContent=
+    `At ${cruisePct}% cruise (${cruiseLPH.toFixed(1)} L/hr): full-tank endurance ≈ ${tf(enduranceHr*60)} h, still-air range ≈ ${Math.round(rangeNm)} nm.`;
 
-  // Segment cards
+  // ═══ WEIGHT & BALANCE ═══
+  const fuelKg=fuelOnBoard*AVGAS_KG_PER_L;
+  const totalWeight=weightExclFuel+fuelKg;
+  document.getElementById('wb-excl').textContent=Math.round(weightExclFuel);
+  document.getElementById('wb-fuel-l').textContent=fuelOnBoard;
+  document.getElementById('wb-fuel-kg').textContent=fuelKg.toFixed(1);
+  document.getElementById('wb-total').textContent=totalWeight.toFixed(1);
+  const wbBadge=document.getElementById('wb-badge');
+  if(totalWeight>MTOW){
+    wbBadge.className='wb-badge wb-over';
+    wbBadge.textContent='Over MTOW by '+(totalWeight-MTOW).toFixed(1)+' kg';
+  }else{
+    wbBadge.className='wb-badge wb-ok';
+    wbBadge.textContent='Within MTOW ('+(MTOW-totalWeight).toFixed(1)+' kg spare)';
+  }
+
+  // ═══ SEGMENT CARDS ═══
   const sgHTML=results.map((r,i)=>{
     const col=i<results.length-1?lc(i):DEST_COL;
     return `<div class="seg-box" style="border-color:${col.c1};"><div class="seg-title" style="color:${col.c1};">${wpLabel(i)}${i===results.length-1?' (Dest)':''}</div>
       <div class="seg-row"><span class="seg-k">${r.isClimb?'Climb':'Descent'}</span><span class="seg-v">${mf(r.trans.min)} / ${n1(r.trans.nm)} nm</span></div>
       <div class="seg-row"><span class="seg-k">Cruise</span><span class="seg-v">${mf(r.cru.min)} / ${n1(r.cruDist)} nm</span></div>
-      <div class="seg-row"><span class="seg-k">Energy</span><span class="seg-v">${n1(r.soc)} %SOC (${(socToKwh(r.soc)).toFixed(2)} kWh)</span></div></div>`;
+      <div class="seg-row"><span class="seg-k">Fuel</span><span class="seg-v">${n1(r.fuelL)} L</span></div></div>`;
   }).join('');
   document.getElementById('seg-grid').style.gridTemplateColumns=`repeat(${Math.min(results.length,3)},1fr)`;
   document.getElementById('seg-grid').innerHTML=sgHTML;
 
-  // SOC strip \u2014 bars are positioned by cumulative distance to align horizontally
-  // with the flight profile's x-axis. Padding matches the SVG's PL/PR.
+  // ═══ FUEL STRIP — bars positioned by cumulative distance to align with SVG ═══
   const wpNames=[depLabel(),...legs.map((_,i)=>wpLabel(i)),wpLabel(legs.length)];
   const strip=document.getElementById('soc-strip');
   strip.innerHTML='';
-  // Cumulative nm at each SOC waypoint (Dep, leg 1..N, Dest)
   const totalNm=legs.reduce((s,l)=>s+l.dist,0)+arrDist;
   const cumNm=[0]; let acc=0;
   legs.forEach(l=>{acc+=l.dist;cumNm.push(acc);});
   cumNm.push(acc+arrDist);
-  // Mirror the SVG inner-area horizontal bounds in % of strip width.
   const PAD_L=SVG_DIMS.PL/SVG_DIMS.W*100, PAD_R=SVG_DIMS.PR/SVG_DIMS.W*100, INNER=100-PAD_L-PAD_R;
-  socs.forEach((pct,i)=>{
-    const cp=Math.max(0,Math.min(100,pct)),fillH=Math.round(cp*0.6),resH=Math.round(resPct*100*0.6),col=socColor(cp);
+  // Fuel remaining at each waypoint: departure = full tank; taxi burned before departure.
+  const fuelSeq=[fuelOnBoard];
+  let run=fuelOnBoard-TAXI_L;
+  results.forEach(r=>{run-=r.fuelL; fuelSeq.push(run);});
+  fuelSeq.forEach((litres,i)=>{
+    const clamped=Math.max(0,litres);
+    const fillH=Math.round(Math.min(clamped/FUEL_CAP,1)*60);
+    const resH=Math.round(Math.min(reserveL/FUEL_CAP,1)*60);
+    const col=fuelColor(litres,reserveL);
     const xPct=totalNm>0?PAD_L+(cumNm[i]/totalNm)*INNER:PAD_L;
     const wp=document.createElement('div');wp.className='soc-wp';
     wp.style.left=xPct.toFixed(3)+'%';
-    wp.innerHTML=`<div class="soc-bar-wrap"><div style="position:absolute;bottom:0;left:0;width:100%;height:${resH}px;background:#EF9F27;opacity:0.4;"></div><div style="width:100%;height:${fillH}px;background:${col};transition:height 0.3s;"></div></div><div class="soc-pct" style="color:${col};">${Math.round(cp)}%</div><div class="soc-kwh">${(cp/100*usable).toFixed(1)} kWh</div><div class="soc-label">${wpNames[i]}</div>`;
+    wp.innerHTML=`<div class="soc-bar-wrap"><div style="position:absolute;bottom:0;left:0;width:100%;height:${resH}px;background:#EF9F27;opacity:0.4;"></div><div style="width:100%;height:${fillH}px;background:${col};transition:height 0.3s;"></div></div><div class="soc-pct" style="color:${col};">${n1(clamped)} L</div><div class="soc-kwh">${totalNm>0?Math.round(cumNm[i])+' nm':''}</div><div class="soc-label">${wpNames[i]}</div>`;
     strip.appendChild(wp);
   });
 
@@ -518,47 +631,44 @@ function update(){
   drawSVG(depAlt,arrAlt,results);
 
   // ═══ DETAILED CALCULATION ═══
-  document.getElementById('det-header').innerHTML='All values from POH tables, interpolated at SOH = <strong>'+Math.round(sohPct)+'%</strong>';
-  let det='',step='A',running2=startSocPct;
+  document.getElementById('det-header').innerHTML='Fuel from POH Table 3, interpolated at OAT <strong>'+(oat>=0?'+':'')+oat+' °C</strong>. Cruise power: <strong>'+cruisePct+'% BHP</strong>.';
+  let det='',step='A';
+  det+=`<div class="det-phase"><div class="det-head" style="color:#8b847b;">Taxi &amp; start</div><div class="det-line">${step}) Fixed taxi/start allowance = <span class="det-res">${n1(TAXI_L)} L</span></div></div>`;
+  step=String.fromCharCode(step.charCodeAt(0)+1);
   results.forEach((r,i)=>{
     const col=i<results.length-1?lc(i):DEST_COL;
     const isLast=i===results.length-1;
     const lblHead=isLast?'→ '+wpLabel(legs.length):wpLabel(i);
     det+=`<div class="det-phase"><div class="det-head" style="color:${col.c1};">${lblHead}</div>`;
-    if(i===0){det+=`<div class="det-line">${step}) Takeoff + initial climb to 300 ft AGL = <span class="det-res">${n1(toSoc)} %SOC</span></div>`;step=String.fromCharCode(step.charCodeAt(0)+1);}
-    if(r.isClimb&&r.trans.bands){
-      det+=`<div class="det-line">${step}) Climb (V<sub>y</sub>) at 48 kW from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft)</div>`;
-      det+=`<div class="det-line" style="padding-left:28px;font-size:10px;color:var(--tx2);">ISA deviation: ${r.trans.isaDev>=0?'+':''}${r.trans.isaDev.toFixed(1)}°C (constant)</div>`;
-      r.trans.bands.forEach(b=>{det+=`<div class="det-line" style="padding-left:28px;font-size:10px;">${b.from.toLocaleString()}\u2192${b.to.toLocaleString()} ft: ROC=${b.roc} ft/min \u00b7 ${n1(b.min)} min \u00b7 ${n1(b.delta/1000)}\u00d7${n1(refClimb)}\u00d7(${REF_ROC}/${b.roc}) = ${n1(b.soc)} %SOC</div>`;});
-      det+=`<div class="det-line" style="padding-left:28px;">Total climb: ${n1(r.trans.min)} min \u00b7 ${n1(r.trans.nm)} nm \u00b7 <span class="det-res">${n1(r.trans.soc)} %SOC</span></div>`;
+    if(r.isClimb&&r.trans.bands&&r.trans.bands.length){
+      det+=`<div class="det-line">${step}) Climb (${CLIMB_KIAS} KIAS, full power) from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft)</div>`;
+      r.trans.bands.forEach(b=>{det+=`<div class="det-line" style="padding-left:28px;font-size:10px;">${b.from.toLocaleString()}→${b.to.toLocaleString()} ft: ROC=${b.roc} ft/min · ${n1(b.min)} min · ${b.lph.toFixed(1)} L/hr = ${n1(b.fuelL)} L</div>`;});
+      det+=`<div class="det-line" style="padding-left:28px;">Total climb: ${n1(r.trans.min)} min · ${n1(r.trans.nm)} nm · <span class="det-res">${n1(r.trans.fuelL)} L</span></div>`;
     }else{
-      det+=`<div class="det-line">${step}) Descent (glide ${glideR}:1) from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft) = <span class="det-res">0 %SOC</span></div>`;
-      det+=`<div class="det-line" style="padding-left:28px;">Glide distance = ${n1(r.trans.nm)} nm</div>`;
+      det+=`<div class="det-line">${step}) Descent (glide ${GLIDE_RATIO}:1, ${GLIDE_KIAS} KIAS) from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft) = <span class="det-res">0 L</span></div>`;
+      det+=`<div class="det-line" style="padding-left:28px;">Glide distance = ${n1(r.trans.nm)} nm · ${n1(r.trans.min)} min</div>`;
     }
     step=String.fromCharCode(step.charCodeAt(0)+1);
-    det+=`<div class="det-line">${step}) Cruise at ${cruiseKw} kW (${Math.round(cruiseKts)} kts) for ${n1(r.cru.min)} min (${n1(r.cruDist)} nm)</div>`;
-    det+=`<div class="det-line" style="padding-left:28px;">(${n1(r.cru.min)} / 10) \u00d7 ${n1(cru10)} = <span class="det-res">${n1(r.cru.soc)} %SOC</span></div>`;
+    det+=`<div class="det-line">${step}) Cruise at ${cruisePct}% (${Math.round(r.cru.ktas||perfAtBhp(r.cruiseAlt,cruisePct,oat).ktas)} kt, ${(r.cru.lph||0).toFixed(1)} L/hr) for ${n1(r.cru.min)} min (${n1(r.cruDist)} nm)</div>`;
+    det+=`<div class="det-line" style="padding-left:28px;">(${n1(r.cru.min)} / 60) × ${(r.cru.lph||0).toFixed(1)} = <span class="det-res">${n1(r.cru.fuelL)} L</span></div>`;
     step=String.fromCharCode(step.charCodeAt(0)+1);
-    if(isLast){
-      const appLabel=approach==='pattern'?'Traffic pattern (1,000 ft)':'Straight-in approach';
-      det+=`<div class="det-line">${step}) ${appLabel} = <span class="det-res">${approachSoc} %SOC</span></div>`;
-      step=String.fromCharCode(step.charCodeAt(0)+1);
-    }
-    running2-=r.soc;
-    det+=`<div class="det-line" style="margin-top:2px;"><strong>${lblHead} total = <span class="det-res">${n1(r.soc)} %SOC</span> \u00b7 SOC remaining: ${n1(Math.max(0,running2))}%</strong></div></div>`;
+    det+=`<div class="det-line" style="margin-top:2px;"><strong>${lblHead} total = <span class="det-res">${n1(r.fuelL)} L</span></strong></div></div>`;
   });
   det+=`<hr class="det-sep">`;
-  det+=`<div class="det-total"><span>SOC at departure</span><strong>${n1(startSocPct)}% (${n1(usable*soc0)} kWh)</strong></div>`;
+  det+=`<div class="det-total"><span>Fuel on board</span><strong>${n1(fuelOnBoard)} L</strong></div>`;
+  det+=`<div class="det-total"><span>− Taxi/start</span><strong>${n1(TAXI_L)} L</strong></div>`;
   results.forEach((r,i)=>{
-    const lbl=i===results.length-1?('\u2192 '+wpLabel(legs.length)):wpLabel(i);
-    det+=`<div class="det-total"><span>\u2212 ${lbl}</span><strong>${n1(r.soc)}%</strong></div>`;
+    const lbl=i===results.length-1?('→ '+wpLabel(legs.length)):wpLabel(i);
+    det+=`<div class="det-total"><span>− ${lbl}</span><strong>${n1(r.fuelL)} L</strong></div>`;
   });
   det+=`<hr class="det-sep">`;
-  det+=`<div class="det-total"><span><strong>SOC at destination</strong></span><strong style="color:${socColor(arrSoc)};">${n1(arrSoc)}% (${n1(arrSoc/100*usable)} kWh)</strong></div>`;
-  det+=`<div class="det-total"><span>Reserve requirement</span><strong>${Math.round(resPct*100)}% (${n1(reserveKwh)} kWh)</strong></div>`;
-  det+=`<div class="det-total"><span><strong>Margin above reserve</strong></span><strong style="color:${margin>=0?'#27500A':'#791F1F'};">${n1(arrSoc-resPct*100)}% (${n1(margin)} kWh)</strong></div>`;
-  det+=`<div class="det-total"><span>Total %SOC used</span><strong>${n1(totalSoc)}%</strong></div>`;
+  det+=`<div class="det-total"><span><strong>Fuel at destination</strong></span><strong style="color:${fuelColor(remainingL,reserveL)};">${n1(remainingL)} L</strong></div>`;
+  det+=`<div class="det-total"><span>Reserve requirement (${reserveMin} min @ ${cruiseLPH.toFixed(1)} L/hr)</span><strong>${n1(reserveL)} L</strong></div>`;
+  det+=`<div class="det-total"><span><strong>Margin over reserve</strong></span><strong style="color:${marginL>=0?'#27500A':'#791F1F'};">${n1(marginL)} L</strong></div>`;
   document.getElementById('det-calc').innerHTML=det;
+
+  // Persist (velis_-prefixed so it rides the save bundle)
+  saveState();
 }
 
 /* ═══ SVG ═══ */
@@ -573,7 +683,6 @@ function drawSVG(depAlt,arrAlt,results){
   function yp(ft){return PT+IH-(ft/maxA)*IH;}
   const tc='#555',gc='rgba(0,0,0,0.06)';
 
-  // Build profile points
   let cumDist=0;
   const pts=[[0,depAlt]];
   results.forEach(r=>{
@@ -588,11 +697,9 @@ function drawSVG(depAlt,arrAlt,results){
   const fillPath=linePath+' L'+xp(totalDist).toFixed(1)+','+yp(0).toFixed(1)+' L'+xp(0).toFixed(1)+','+yp(0).toFixed(1)+' Z';
   let h='<defs><clipPath id="pc"><rect x="'+PL+'" y="'+PT+'" width="'+IW+'" height="'+IH+'"/></clipPath></defs>';
 
-  // Grid
   const step=maxA>8000?3000:2000;
   for(let a=0;a<=maxA;a+=step){const y=yp(a);if(y<PT-2||y>PT+IH+2)continue;h+=`<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="${gc}" stroke-width="1"/><text x="${PL-4}" y="${(y+3.5).toFixed(1)}" font-size="9" fill="${tc}" text-anchor="end">${(a/1000).toFixed(0)}k</text>`;}
 
-  // Waypoint dividers
   cumDist=0;
   results.forEach((r,i)=>{
     cumDist+=r.dist;
@@ -602,11 +709,9 @@ function drawSVG(depAlt,arrAlt,results){
     }
   });
 
-  // Fill + line
   h+=`<path d="${fillPath}" fill="rgba(29,158,117,0.09)" clip-path="url(#pc)"/>`;
   h+=`<path d="${linePath}" fill="none" stroke="#1D9E75" stroke-width="2" clip-path="url(#pc)"/>`;
 
-  // Waypoint dots + altitude labels
   cumDist=0;
   h+=`<circle cx="${xp(0).toFixed(1)}" cy="${yp(depAlt).toFixed(1)}" r="4" fill="#185FA5"/>`;
   results.forEach((r,i)=>{
@@ -616,7 +721,6 @@ function drawSVG(depAlt,arrAlt,results){
     if(i<results.length-1) h+=`<text x="${xp(cumDist).toFixed(1)}" y="${(yp(r.wpAlt)-9).toFixed(1)}" font-size="9" fill="${col.c1}" text-anchor="middle" font-weight="500">${r.wpAlt.toLocaleString()} ft</text>`;
   });
 
-  // TOC/BOD transition points
   cumDist=0;
   results.forEach((r,i)=>{
     const transNm=r.trans.nm;
@@ -627,12 +731,11 @@ function drawSVG(depAlt,arrAlt,results){
       h+=`<line x1="${xp(transPos).toFixed(1)}" y1="${PT}" x2="${xp(transPos).toFixed(1)}" y2="${(PT+IH).toFixed(1)}" stroke="${col.c1}" stroke-width="0.8" stroke-dasharray="2,3" opacity="0.4"/>`;
       h+=`<circle cx="${xp(transPos).toFixed(1)}" cy="${yp(r.wpAlt).toFixed(1)}" r="3" fill="${col.c1}" opacity="0.7"/>`;
       h+=`<text x="${xp(transPos).toFixed(1)}" y="${(yp(r.wpAlt)-18).toFixed(1)}" font-size="7.5" fill="${col.c1}" text-anchor="middle" font-weight="600" opacity="0.8">${label}</text>`;
-      h+=`<text x="${xp(transPos).toFixed(1)}" y="${(yp(r.wpAlt)-9).toFixed(1)}" font-size="7" fill="${col.c1}" text-anchor="middle" opacity="0.7">${n1(transNm)} nm \u00b7 ${mfShort(r.trans.min)}</text>`;
+      h+=`<text x="${xp(transPos).toFixed(1)}" y="${(yp(r.wpAlt)-9).toFixed(1)}" font-size="7" fill="${col.c1}" text-anchor="middle" opacity="0.7">${n1(transNm)} nm · ${mfShort(r.trans.min)}</text>`;
     }
     cumDist+=r.dist;
   });
 
-  // X-axis labels — keep them tight; truncate user names to 14 chars so they fit
   const trim=s=>s&&s.length>14?s.slice(0,13)+'…':s;
   cumDist=0;let cumMin=0;
   const xLabels=[[0,trim(depLabel()),0]];
@@ -646,12 +749,11 @@ function drawSVG(depAlt,arrAlt,results){
     if(nm>0)h+=`<text x="${xp(nm).toFixed(1)}" y="${(PT+IH+35).toFixed(1)}" font-size="8" fill="${tc}" text-anchor="middle">${mfShort(cm)}</text>`;
   });
 
-  // Leg annotations
-  cumDist=0;cumMin=0;
+  cumDist=0;
   results.forEach((r,i)=>{
     const col=i<results.length-1?lc(i):DEST_COL;
     const mid=cumDist+r.dist/2;
-    h+=`<text x="${xp(mid).toFixed(1)}" y="${(PT+IH+50).toFixed(1)}" font-size="8" fill="${col.c1}" text-anchor="middle" font-weight="500">${Math.round(r.dist)} nm \u00b7 ${mfShort(r.min)}</text>`;
+    h+=`<text x="${xp(mid).toFixed(1)}" y="${(PT+IH+50).toFixed(1)}" font-size="8" fill="${col.c1}" text-anchor="middle" font-weight="500">${Math.round(r.dist)} nm · ${mfShort(r.min)}</text>`;
     cumDist+=r.dist;
   });
 
@@ -660,15 +762,16 @@ function drawSVG(depAlt,arrAlt,results){
 }
 
 /* ═══ STATE ═══
-   STATE_FIELDS maps state-key → DOM input id. Drives serialize / restore.
-   Add a new slider here and it round-trips through saved plans automatically. */
+   STATE_FIELDS maps state-key → DOM input id. cruisePct, approach and legs
+   are serialised separately (buttons / radio / array). */
 const STATE_FIELDS = {
-  soh:'soh', soc0:'soc0', res:'res', oat:'oat', cruiseKw:'cruise-kw',
+  fuel:'fuel', weightExclFuel:'weight', oat:'oat', reserveMin:'reserve',
   depAlt:'dep-alt', arrAlt:'arr-alt', arrDist:'arr-dist',
   depName:'dep-name', arrName:'arr-name', perfAdj:'perf-adj',
 };
 function getFullState(){
   const s={
+    cruisePct:cruisePct,
     approach:document.querySelector('input[name="approach"]:checked')?.value||'pattern',
     legs:JSON.parse(JSON.stringify(legs)),
   };
@@ -679,52 +782,39 @@ function _applyInputFields(s){
   for(const [k,id] of Object.entries(STATE_FIELDS))
     if(s[k]!==undefined) document.getElementById(id).value=s[k];
 }
-function applyFullState(s){
-  _applyInputFields(s);
-  if(s.approach)document.querySelector(`input[name="approach"][value="${s.approach}"]`).checked=true;
-  if(s.legs&&Array.isArray(s.legs)&&s.legs.length>0) legs=s.legs.map(l=>({alt:l.alt,dist:l.dist,name:l.name||''}));
-  renderLegs(); saveState(); update();
-}
-function saveState(){localStorage.setItem('velis_route_state',JSON.stringify(getFullState()));if(window.velisPlan)window.velisPlan.markDirty();else localStorage.setItem('velis_bundle_mtime',String(Date.now()));}
+function saveState(){localStorage.setItem('velis_da20_route_state',JSON.stringify(getFullState()));if(window.velisPlan)window.velisPlan.markDirty();else localStorage.setItem('velis_bundle_mtime',String(Date.now()));}
 function loadState(){
-  // Seed cruise-kw from the shared key even if no full route_state exists yet
-  const savedKw=localStorage.getItem('velis_cruise_kw');
-  if(savedKw!==null) document.getElementById('cruise-kw').value=savedKw;
-  const raw=localStorage.getItem('velis_route_state');if(!raw)return;
+  const raw=localStorage.getItem('velis_da20_route_state');if(!raw)return;
   try{
     const s=JSON.parse(raw);
     _applyInputFields(s);
-    if(s.cruiseKw===undefined && savedKw!==null) document.getElementById('cruise-kw').value=savedKw;
+    if(s.cruisePct!==undefined && [55,65,75].includes(+s.cruisePct)) cruisePct=+s.cruisePct;
     if(s.approach)document.querySelector(`input[name="approach"][value="${s.approach}"]`).checked=true;
     if(s.legs&&Array.isArray(s.legs)&&s.legs.length>0){
-      // Clamp to the slider ranges in case localStorage was hand-edited or
-      // a saved plan drifts outside the limits the UI enforces.
+      // Clamp to slider ranges in case localStorage was hand-edited.
       const cl=(n,lo,hi,fb)=>{const v=+n;return isFinite(v)?Math.max(lo,Math.min(hi,v)):fb;};
       legs=s.legs.map(l=>({alt:cl(l.alt,500,15000,3000),dist:cl(l.dist,1,120,20),name:String(l.name||'')}));
     }
+    setCruiseButtons();
   }catch(e){}
 }
 
 /* ═══ OPTIMIZE ALT ═══
    Reassign intermediate-leg altitudes to a feasible climb/descent profile.
-   Preserved: depAlt, arrAlt, the highest altitude (and any leg already at that
-   altitude — those legs cruise level). Leg distances are NOT changed.
-   Climb phase: each waypoint's alt = max altitude reachable from depAlt at
-   that waypoint's cumulative distance, capped at peakAlt (uses POH ROC).
-   Descent phase: glide from peak at the configured glide ratio, level off at
-   arrAlt if the descent reaches it before DEST. */
-function maxAltAtDistance(fromAlt,availNm,capAlt,oat,vyKts,adjPct){
+   Preserved: depAlt, arrAlt, the highest altitude. Leg distances unchanged. */
+function maxAltAtDistance(fromAlt,availNm,capAlt,oat,adjPct){
   if(availNm<=0||capAlt<=fromAlt) return Math.min(fromAlt,capAlt);
-  const isaDev=getIsaDev(oat,fromAlt);
   const factor=1+(+adjPct||0)/100;
   let alt=fromAlt,nmUsed=0;
   while(alt<capAlt&&nmUsed<availNm){
     const top=Math.min(alt+1000,capAlt);
     const bd=top-alt,mid=(alt+top)/2;
-    const roc=interpROC(mid,isaDev)*factor;
-    const mn=bd/roc, nm=vyKts*(mn/60);
+    let rc=roc(equivAlt(mid,oat))*factor;
+    if(rc<=0) break;                                  // at/above ceiling — can't climb further
+    const tas=CLIMB_KIAS*(1+0.015*mid/1000);
+    const mn=bd/rc, nm=tas*(mn/60);
     if(nmUsed+nm<=availNm){alt=top;nmUsed+=nm;}
-    else{const remNm=availNm-nmUsed,remMin=(remNm/vyKts)*60;alt+=remMin*roc;nmUsed=availNm;break;}
+    else{const remNm=availNm-nmUsed,remMin=(remNm/tas)*60;alt+=remMin*rc;nmUsed=availNm;break;}
   }
   return alt;
 }
@@ -734,7 +824,6 @@ function optimizeAltitudes(){
   const arrAlt=+document.getElementById('arr-alt').value;
   const arrDist=+document.getElementById('arr-dist').value;
   const oat=+document.getElementById('oat').value;
-  const vyKts=parseFloat(localStorage.getItem('velis_vy')??'75');
   const perfAdj=+document.getElementById('perf-adj').value;
 
   const N=legs.length, cumDist=[];
@@ -742,31 +831,21 @@ function optimizeAltitudes(){
   const destDist=acc+arrDist;
 
   const peakAlt=Math.max(depAlt,arrAlt,...legs.map(l=>l.alt));
-  // Anchor = LAST leg whose altitude equals peakAlt — that single waypoint
-  // is preserved, and the descent toward DEST begins immediately after it.
-  // Earlier legs that happened to share peakAlt get recomputed along the
-  // climb curve, so you can see visually whether peakAlt is actually
-  // reachable in the available distance.
   let anchorIdx=-1;
   for(let i=N-1;i>=0;i--){if(legs[i].alt===peakAlt){anchorIdx=i;break;}}
 
   let peakEndDist;
   if(anchorIdx>=0) peakEndDist=cumDist[anchorIdx];
-  else if(depAlt>=arrAlt) peakEndDist=0;       // peak is at DEP
-  else peakEndDist=destDist;                    // peak is at DEST
+  else if(depAlt>=arrAlt) peakEndDist=0;
+  else peakEndDist=destDist;
 
   for(let i=0;i<N;i++){
-    if(i===anchorIdx) continue;                 // anchor preserved
+    if(i===anchorIdx) continue;
     const d=cumDist[i];
     let newAlt;
     if(d<=peakEndDist){
-      // Climb phase: max altitude achievable from DEP at this distance
-      // (Vy + POH ROC), capped at peakAlt — once climb finishes, level cruise.
-      newAlt=maxAltAtDistance(depAlt,d,peakAlt,oat,vyKts,perfAdj);
+      newAlt=maxAltAtDistance(depAlt,d,peakAlt,oat,perfAdj);
     } else {
-      // Descent phase: linear from (peakEndDist, peakAlt) → (destDist, arrAlt).
-      // Linear (not glide-ratio) so the profile lands exactly at arrAlt no
-      // matter how short the descent leg is.
       const descTotal=destDist-peakEndDist;
       const frac=descTotal>0?(d-peakEndDist)/descTotal:0;
       newAlt=peakAlt - frac*(peakAlt-arrAlt);
@@ -777,22 +856,17 @@ function optimizeAltitudes(){
 }
 
 /* ═══ STATE REFRESH ═══
-   Re-read state after navigation or after plan_sync.js loads a bundle in-place.
-   Bound at module scope so a (hypothetical) double init() can't double-bind.
-   Guard against pageshow firing before POH is loaded — NOM is set in loadPOH. */
+   Re-read state after navigation or after plan_sync.js loads a bundle in-place. */
 function _refreshFromState(){
-  if(typeof NOM==='undefined') return;
+  if(!CR||!C) return;
   loadState();renderLegs();update();
 }
 window.addEventListener('pageshow',_refreshFromState);
 document.addEventListener('velis:after-load',_refreshFromState);
 
 /* ═══ NAV PLAN ⇄ ROUTE PLANNER SYNC ═══
-   Post-save flow: after a successful save the user is asked whether to push the
-   freshly-edited altitudes & distances over to the NAV Plan. The NAV Plan owns
-   pilot-entered fields (winds, freqs, EET, remarks), so the push only runs when
-   the two routes share the same waypoint sequence — otherwise we'd clobber that
-   pilot data. Shape mismatch surfaces as a warning in the popup. */
+   Reads/writes velis_da20_navplan_state (the DA20 NAV Plan). Preserves pilot
+   fields; only pushes when the waypoint sequence matches (else rebuilds). */
 function rpAsWpList(){
   const depName=document.getElementById('dep-name').value.trim();
   const arrName=document.getElementById('arr-name').value.trim();
@@ -807,15 +881,12 @@ function rpAsWpList(){
   return wps;
 }
 function navAsWpList(){
-  const raw=localStorage.getItem('velis_navplan_state');
+  const raw=localStorage.getItem('velis_da20_navplan_state');
   if(!raw) return null;
   let nav; try{nav=JSON.parse(raw);}catch(e){return null;}
   const route=Array.isArray(nav.route)?nav.route:[];
   if(route.length<2) return null;
   const {parseAlt,parseDist,joinName}=window.velisWp;
-  // NAV's FREQ column lower input is data-f="ident", so users sometimes type
-  // a frequency (e.g. "128.475") in there. Treat that as a non-ident — use
-  // only r.wp — so the comparison name doesn't become "128.475 LSPG".
   const rowName = r => {
     const id=(r&&r.ident||'').trim();
     const wp=(r&&r.wp||'').trim();
@@ -830,7 +901,7 @@ function navAsWpList(){
 function rpIsInSyncWithNav(){
   if(!Array.isArray(legs)||legs.length===0) return {inSync:true};
   const navWps=navAsWpList();
-  if(!navWps) return {inSync:true};                      // no NAV yet → silent
+  if(!navWps) return {inSync:true};
   const rpWps=rpAsWpList();
   if(navWps.length!==rpWps.length) return {inSync:false, mismatch:true};
   for(let i=0;i<navWps.length;i++){
@@ -838,11 +909,6 @@ function rpIsInSyncWithNav(){
     const b=(rpWps[i].name||'').toLowerCase();
     if(a!==b) return {inSync:false, mismatch:true};
   }
-  // Null on either side counts as in-sync for that field — an empty NAV cell
-  // means the pilot hasn't specified, and RP's slider always has a default.
-  // Clamp NAV's value through RP's slider range — pushRouteToNavPlan would
-  // store the clamped value on NAV, so an out-of-range NAV value (dist=1
-  // below RP's 2 nm min) compares equal to RP's clamped value.
   const _isNum = v => typeof v==='number' && !isNaN(v);
   const _cl   = (n,lo,hi) => Math.max(lo, Math.min(hi, n));
   const last  = navWps.length-1;
@@ -862,13 +928,11 @@ function rpIsInSyncWithNav(){
 }
 function pushRouteToNavPlan(){
   const rpWps=rpAsWpList();
-  const raw=localStorage.getItem('velis_navplan_state');
+  const raw=localStorage.getItem('velis_da20_navplan_state');
   if(!raw) return false;
   let nav; try{nav=JSON.parse(raw);}catch(e){return false;}
   const route=Array.isArray(nav.route)?nav.route:[];
 
-  // Same-shape path (names match per position): refresh alt/dist only and
-  // leave pilot fields (freq, wind, EET, remark, etc.) untouched.
   const sameShape = route.length===rpWps.length && rpWps.every((rp,i)=>{
     const a=window.velisWp.joinName(route[i].ident,route[i].wp).trim().toLowerCase();
     const b=(rp.name||'').trim().toLowerCase();
@@ -893,16 +957,12 @@ function pushRouteToNavPlan(){
     }
     if(changed){
       nav.meta = {...(nav.meta||{id:null,name:'',dirty:false}), dirty:true};
-      localStorage.setItem('velis_navplan_state',JSON.stringify(nav));
+      localStorage.setItem('velis_da20_navplan_state',JSON.stringify(nav));
       window.velisPlan&&window.velisPlan.markDirty();
     }
     return true;
   }
 
-  // Different shape — rebuild the route from RP. Per position, keep whatever
-  // pilot fields exist on the same-index row (freq/wind/EET/remark/MSA/etc.),
-  // and overwrite name/alt/dist/altTrend from RP. Rows that don't exist yet
-  // start as empty waypoints.
   const splitName=window.velisWp.splitName;
   const EMPTY={ident:'',wp:'',alt:'',altTrend:'',freq:'',msa:'',level:'',tas:'',trk:'',wind:'',hdg:'',gs:'',dist:'',eet:'',remark:''};
   const newRoute=rpWps.map((rp,i)=>{
@@ -924,14 +984,12 @@ function pushRouteToNavPlan(){
   });
   nav.route=newRoute;
   nav.meta={...(nav.meta||{id:null,name:'',dirty:false}), dirty:true};
-  localStorage.setItem('velis_navplan_state',JSON.stringify(nav));
+  localStorage.setItem('velis_da20_navplan_state',JSON.stringify(nav));
   window.velisPlan&&window.velisPlan.markDirty();
   return true;
 }
 document.addEventListener('velis:after-save',()=>{
-  const _dbg=window.velisSyncDbg||function(m){try{console.log('[sync]',m);}catch(e){}};
-  _dbg('RP after-save fired (legs='+(Array.isArray(legs)?legs.length:'?')+', nav='+(!!localStorage.getItem('velis_navplan_state'))+', velisPlan='+(!!window.velisPlan)+')');
-  if(!window.velisPlan||!window.velisPlan.runAutoSync){_dbg('RP: velisPlan.runAutoSync MISSING');return;}
+  if(!window.velisPlan||!window.velisPlan.runAutoSync) return;
   window.velisPlan.runAutoSync({
     isInSync: rpIsInSyncWithNav,
     onConfirm: pushRouteToNavPlan,
@@ -940,45 +998,39 @@ document.addEventListener('velis:after-save',()=>{
     bodyHtmlOnMismatch: 'The NAV Plan has a <b>different route</b>. Syncing will rebuild it from this one — pilot fields (winds, freqs, EET, remarks) are kept per position where rows still line up.'
   });
 });
-// plan_sync.js is `defer` and runs after this inline script — register the
-// manual-sync item once the DOM is ready (defer scripts complete before
-// DOMContentLoaded fires).
 window.addEventListener('DOMContentLoaded',()=>{
   if(window.velisPlan&&window.velisPlan.registerManualSync){
     window.velisPlan.registerManualSync({
       label: 'Sync to NAV Plan now',
       fn: pushRouteToNavPlan,
-      available: ()=> !!localStorage.getItem('velis_navplan_state') && Array.isArray(legs) && legs.length>0
+      available: ()=> !!localStorage.getItem('velis_da20_navplan_state') && Array.isArray(legs) && legs.length>0
     });
   }
 });
 
 /* ═══ INIT ═══ */
 async function init(){
-  await loadPOH();
+  await loadData();
   loadState();
   renderLegs();
   buildAltTicks();
-  // Slider drags fire one input event per pixel — coalesce saveState + update
-  // so each animation frame does one full recompute, not 60 in a row.
+  setCruiseButtons();
   let _scheduled=false;
   function scheduleUpdate(){
     if(_scheduled) return;
     _scheduled=true;
-    requestAnimationFrame(()=>{_scheduled=false;saveState();update();});
+    requestAnimationFrame(()=>{_scheduled=false;update();});
   }
-  ['soh','soc0','res','oat','cruise-kw','dep-alt','arr-alt','arr-dist','perf-adj'].forEach(id=>
+  ['fuel','weight','oat','reserve','dep-alt','arr-alt','arr-dist','perf-adj'].forEach(id=>
     document.getElementById(id).addEventListener('input',scheduleUpdate));
   ['dep-name','arr-name'].forEach(id=>
     document.getElementById(id).addEventListener('input',()=>saveState()));
   document.querySelectorAll('input[name="approach"]').forEach(r=>r.addEventListener('change',()=>{saveState();update();}));
   document.getElementById('btn-optimize-alt').addEventListener('click',optimizeAltitudes);
 
-  // First-ever visit: persist the on-screen defaults so other pages (NAV Plan
-  // import) can read them without requiring the user to nudge a slider first.
-  // Written directly — no markDirty, so a fresh visit doesn't look unsaved.
-  if(!localStorage.getItem('velis_route_state')){
-    localStorage.setItem('velis_route_state',JSON.stringify(getFullState()));
+  // First-ever visit: persist on-screen defaults so the NAV Plan can read them.
+  if(!localStorage.getItem('velis_da20_route_state')){
+    localStorage.setItem('velis_da20_route_state',JSON.stringify(getFullState()));
   }
 
   update();

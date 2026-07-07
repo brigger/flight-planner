@@ -61,6 +61,8 @@ window.velisWp = (function(){
       { type:'perf',    href:'velis_performance.html', label:'Performance'       },
     ]},
     { id:'da20', name:'Diamond DA20-C1', tabs:[
+      { type:'navplan', href:'da20_navplan.html',      label:'NAV Plan'          },
+      { type:'route',   href:'da20_index.html',        label:'Route Planner'     },
       { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
       { type:'perf',    href:'da20_performance.html',  label:'Performance'       },
     ]},

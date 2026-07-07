@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Velis Electro — NAV Plan</title>
+<title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
@@ -309,12 +309,6 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
           <tr class="title-row">
             <td class="title-td">
               ENDURANCE CALCULATOR
-              <div class="mode-wrap">
-                <select class="mode-sel" id="mode-sel">
-                  <option value="electric">Electric</option>
-                  <option value="fuel">Fuel</option>
-                </select>
-              </div>
             </td>
             <td class="ff-cell">
               <span class="ff-lbl"><span id="ff-lbl">Fuel flow</span><span class="unit-hint" id="ff-unit">(L/h)</span></span>
@@ -374,12 +368,12 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
         <div class="toldg-card">
           <div class="toldg-head"><span class="toldg-title">Takeoff</span><span class="toldg-cond" id="toldg-cond-to"></span></div>
           <svg id="nav-svg-to" class="toldg-svg" viewBox="0 0 700 160"></svg>
-          <div class="toldg-nums"><span>Ground roll<b id="toldg-to-gr">—</b></span><span>50 ft obst.<b id="toldg-to-ob">—</b></span></div>
+          <div class="toldg-nums"><span>To clear obstacle<b id="toldg-to-ob">—</b></span></div>
         </div>
         <div class="toldg-card">
           <div class="toldg-head"><span class="toldg-title">Landing</span><span class="toldg-cond" id="toldg-cond-ld"></span></div>
           <svg id="nav-svg-ld" class="toldg-svg" viewBox="0 0 700 160"></svg>
-          <div class="toldg-nums"><span>Ground roll<b id="toldg-ld-gr">—</b></span><span>50 ft obst.<b id="toldg-ld-ob">—</b></span></div>
+          <div class="toldg-nums"><span>Over 50 ft<b id="toldg-ld-ob">—</b></span><span>Roll<b id="toldg-ld-gr">—</b></span></div>
         </div>
       </div>
     </div>
@@ -426,7 +420,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
    NAV Plan — state, render, compute, persist
    ═════════════════════════════════════════════════════════════════════ */
 
-const STATE_KEY='velis_navplan_state';
+const STATE_KEY='velis_da20_navplan_state';
 const EMPTY_WP=()=>({freq:'',ident:'',wp:'',hdg:'',dist:'',alt:'',altTrend:'',eet:'',ato:'',wind:'',freqR:'',remark:''});
 const TREND_NEXT={'':'up',up:'down',down:''};
 const TREND_CHAR={'':'',up:'↗',down:'↘'};
@@ -439,7 +433,7 @@ const DEFAULT_STATE=()=>({
   altn:EMPTY_WP(),
   comments:'',
   totalsRemark:{u:'',l:''},
-  end:{mode:'electric',ff:'',tf:'',tripT:'',altT:'',extraT:''},
+  end:{ff:'',tf:'',tripT:'',altT:'',extraT:''},
   meta:{id:null,name:'',dirty:false}
 });
 
@@ -703,7 +697,6 @@ ta.addEventListener('input',()=>{state.comments=ta.value;saveState();});
    ═════════════════════════════════════════════════════════════════════ */
 
 const E={
-  mode:document.getElementById('mode-sel'),
   ffLbl:document.getElementById('ff-lbl'),
   ffUnit:document.getElementById('ff-unit'),
   ffInp:document.getElementById('ff-inp'),
@@ -729,131 +722,47 @@ const E={
 };
 
 // Restore persisted endurance state (qty cells are derived, not persisted)
-E.mode.value=state.end.mode||'electric';
 E.ffInp.value=state.end.ff||'';
 E.tfInp.value=state.end.tf||'';
 E.tripT.value=state.end.tripT||'';
 E.altT.value=state.end.altT||'';
 E.extraT.value=state.end.extraT||'';
 
-function batteryKwh(){
-  // velis_usable_kwh = full usable capacity (NOM × SOH) written by the Route Planner.
-  // The Route Planner's %SOC is expressed against this same capacity, so it's the right divisor here.
-  const usable=parseFloat(localStorage.getItem('velis_usable_kwh'));
-  if(isFinite(usable)&&usable>0) return usable;
-  return 23.3; // Velis nominal usable kWh at SOH ≈ 94 %
-}
-function endurancePull(){
-  // Electric only: pull Avg power + Trip time from the Route Planner (if empty),
-  // and always sync Total SOC from the Route Planner's starting SOC so they can't drift.
-  if(state.end.mode!=='electric') return;
-  const totalMin=parseFloat(localStorage.getItem('velis_total_min'));
-  const cruiseKw=parseFloat(localStorage.getItem('velis_cruise_kw'));
-  const soc0=parseFloat(localStorage.getItem('velis_soc0_pct'));
-  let changed=false;
-  if(!state.end.ff&&isFinite(cruiseKw)){state.end.ff=cruiseKw.toFixed(0);E.ffInp.value=state.end.ff;changed=true;}
-  const tfNew=isFinite(soc0)?soc0.toFixed(0):'100';
-  if(state.end.tf!==tfNew){state.end.tf=tfNew;E.tfInp.value=tfNew;changed=true;}
-  if(!state.end.tripT&&isFinite(totalMin)){state.end.tripT=fmtTime(totalMin);E.tripT.value=state.end.tripT;changed=true;}
-  if(changed) saveState();
-}
-
+// Fuel-only: static labels + always-visible TO/LDG pictures (DA20 is a piston aircraft)
 function applyModeUI(){
-  const mode=state.end.mode;
   const tbl=document.getElementById('fuel-table');
-  tbl.classList.toggle('mode-electric',mode==='electric');
-  tbl.classList.toggle('mode-fuel',mode==='fuel');
-
+  tbl.classList.remove('mode-electric');
+  tbl.classList.add('mode-fuel');
   const toldg=document.getElementById('toldg-section');
-  if(toldg) toldg.style.display=(mode==='electric')?'':'none';
-
-  // Reserve row sits BEFORE min in fuel mode, AFTER min in electric mode
-  const finalRow=document.getElementById('final-row');
-  const minRow=document.getElementById('min-row');
-  if(mode==='electric'){
-    if(finalRow.previousElementSibling!==minRow) minRow.parentNode.insertBefore(finalRow,minRow.nextSibling);
-  } else {
-    if(finalRow.nextElementSibling!==minRow) minRow.parentNode.insertBefore(finalRow,minRow);
-  }
-
-  if(mode==='electric'){
-    E.ffLbl.textContent='Avg power';
-    E.ffUnit.textContent='(kW)';
-    E.tfLbl.textContent='Total SOC';
-    E.tfUnit.textContent='(%)';
-    E.qtyLbl.textContent='SOC';
-    E.qtyUnit.textContent='(%)';
-    E.finalLbl.textContent='+ Reserve — 30 % SOC';
-    document.getElementById('alt-lbl').textContent='Alternate';
-    E.note.textContent='Electric: Avg power, Total SOC and Trip SOC auto-synced from Route Planner. MIN = Trip + Alternate. ACTUAL = MIN + 30 % SOC reserve.';
-  } else {
-    E.ffLbl.textContent='Fuel flow';
-    E.ffUnit.textContent='(L/h)';
-    E.tfLbl.textContent='Total fuel';
-    E.tfUnit.textContent='(L)';
-    E.qtyLbl.textContent='Fuel qty';
-    E.qtyUnit.textContent='(L)';
-    E.finalLbl.textContent='− Final reserve 45 min';
-    document.getElementById('alt-lbl').textContent='− Alternate';
-    E.note.textContent='Fuel: Qty = Time × FF. MIN = Trip + Alternate + Final reserve. ACTUAL = MIN + Extra.';
-  }
+  if(toldg) toldg.style.display='';
+  E.ffLbl.textContent='Fuel flow';
+  E.ffUnit.textContent='(L/h)';
+  E.tfLbl.textContent='Total fuel';
+  E.tfUnit.textContent='(L)';
+  E.qtyLbl.textContent='Fuel qty';
+  E.qtyUnit.textContent='(L)';
+  E.finalLbl.textContent='− Final reserve 45 min';
+  document.getElementById('alt-lbl').textContent='− Alternate';
+  E.note.textContent='Qty = Time × FF (litres). MIN = Trip + Alternate + Final reserve (45 min). ACTUAL = MIN + Extra.';
 }
 
 function computeEndurance(){
-  const mode=state.end.mode;
-  const isElec=mode==='electric';
-  const ff=parseNum(state.end.ff);              // L/h (fuel) or kW (electric)
+  const ff=parseNum(state.end.ff);              // L/h
   const tripT=parseTime(state.end.tripT);
   const altT=parseTime(state.end.altT);
   const extraT=parseTime(state.end.extraT);
-  const bat=isElec?batteryKwh():NaN;
-
-  // Qty derived: fuel → liters; electric → %SOC
-  const qtyFromTime=m=>{
-    if(!isFinite(m)||!isFinite(ff)) return NaN;
-    const raw=(m/60)*ff;                       // L (fuel) or kWh (electric)
-    if(isElec) return bat>0?raw/bat*100:NaN;   // → %SOC
-    return raw;
-  };
-  let tripQ=qtyFromTime(tripT);
-  const altQ=qtyFromTime(altT);
-  const extraQ=qtyFromTime(extraT);
-  // Electric: override Trip SOC with Route Planner's actual total (more accurate than Time×Power)
-  if(isElec){
-    const plannerKwh=parseFloat(localStorage.getItem('velis_total_kwh'));
-    if(isFinite(plannerKwh)&&bat>0) tripQ=plannerKwh/bat*100;
-  }
+  const qtyFromTime=m=>(isFinite(m)&&isFinite(ff))?(m/60)*ff:NaN;   // litres
+  const tripQ=qtyFromTime(tripT), altQ=qtyFromTime(altT), extraQ=qtyFromTime(extraT);
   E.tripQ.value=fmtNum(tripQ,2);
   E.altQ.value=fmtNum(altQ,2);
   E.extraQ.value=fmtNum(extraQ,2);
 
-  // Final reserve
-  let finalT,finalQ;
-  if(isElec){
-    finalQ=30;                                       // 30 % SOC (fixed)
-    finalT=(isFinite(ff)&&ff>0&&bat>0)?(0.30*bat/ff)*60:NaN;
-  } else {
-    finalT=45;
-    finalQ=qtyFromTime(45);
-  }
+  const finalT=45, finalQ=qtyFromTime(45);      // final reserve 45 min
+  const minT=[tripT,altT,finalT].reduce((s,v)=>s+(isFinite(v)?v:0),0);
+  const minQ=[tripQ,altQ,finalQ].reduce((s,v)=>s+(isFinite(v)?v:0),0);
+  const actualT=minT+(isFinite(extraT)?extraT:0);
+  const actualQ=minQ+(isFinite(extraQ)?extraQ:0);
 
-  // MIN / ACTUAL math differs by mode
-  let minT,minQ,actualT,actualQ;
-  if(isElec){
-    // Electric: MIN = Trip + Alt; ACTUAL = MIN + Reserve (Extra removed in electric)
-    minT=(isFinite(tripT)?tripT:0)+(isFinite(altT)?altT:0);
-    minQ=(isFinite(tripQ)?tripQ:0)+(isFinite(altQ)?altQ:0);
-    actualT=minT+(isFinite(finalT)?finalT:0);
-    actualQ=minQ+(isFinite(finalQ)?finalQ:0);
-  } else {
-    // Fuel: MIN = Trip + Alt + Final reserve; ACTUAL = MIN + Extra
-    minT=[tripT,altT,finalT].reduce((s,v)=>s+(isFinite(v)?v:0),0);
-    minQ=[tripQ,altQ,finalQ].reduce((s,v)=>s+(isFinite(v)?v:0),0);
-    actualT=minT+(isFinite(extraT)?extraT:0);
-    actualQ=minQ+(isFinite(extraQ)?extraQ:0);
-  }
-
-  // Render derived cells
   E.finalTime.value=fmtTime(finalT);
   E.finalQty.value=fmtNum(finalQ,2);
   E.minT.value=minT>0?fmtTime(minT):'';
@@ -863,23 +772,17 @@ function computeEndurance(){
 }
 
 function refreshEndurance(){
-  endurancePull();
   applyModeUI();
   computeEndurance();
 }
 
-// Wire endurance inputs (editable: mode + ff + tf + time fields; qty cells are derived)
-[['mode','mode'],['ff','ffInp'],['tf','tfInp'],['tripT','tripT'],['altT','altT'],['extraT','extraT']]
+// Wire endurance inputs (editable: ff + tf + time fields; qty cells are derived)
+[['ff','ffInp'],['tf','tfInp'],['tripT','tripT'],['altT','altT'],['extraT','extraT']]
   .forEach(([k,elKey])=>{
     const el=E[elKey];
     if(!el) return;
-    const evt=el.tagName==='SELECT'?'change':'input';
-    el.addEventListener(evt,()=>{
+    el.addEventListener('input',()=>{
       state.end[k]=el.value;
-      if(k==='mode'){
-        ['ff','tf','tripT','altT','extraT'].forEach(f=>{state.end[f]='';});
-        E.ffInp.value='';E.tfInp.value='';E.tripT.value='';E.altT.value='';E.extraT.value='';
-      }
       saveState();refreshEndurance();
     });
   });
@@ -893,7 +796,6 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
   // Rehydrate all inputs from default state
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value='';
-  E.mode.value=state.end.mode;
   E.ffInp.value='';E.tfInp.value='';E.tripT.value='';E.altT.value='';E.extraT.value='';
   renderWP();
   refreshEndurance();
@@ -930,7 +832,7 @@ document.addEventListener('velis:before-save',()=>{saveLocal();});
 // out to the Route Planner (only when the two pages have actually diverged).
 document.addEventListener('velis:after-save',()=>{
   const _dbg=window.velisSyncDbg||function(m){try{console.log('[sync]',m);}catch(e){}};
-  _dbg('NAV after-save fired (routeLen='+(state&&state.route&&state.route.length)+', rp='+(!!localStorage.getItem('velis_route_state'))+', velisPlan='+(!!window.velisPlan)+')');
+  _dbg('NAV after-save fired (routeLen='+(state&&state.route&&state.route.length)+', rp='+(!!localStorage.getItem('velis_da20_route_state'))+', velisPlan='+(!!window.velisPlan)+')');
   if(!window.velisPlan||!window.velisPlan.runAutoSync){_dbg('NAV: velisPlan.runAutoSync MISSING');return;}
   window.velisPlan.runAutoSync({
     isInSync: navIsInSyncWithRp,
@@ -959,7 +861,6 @@ document.addEventListener('velis:after-load',()=>{
   if(state.meta) state.meta.dirty=false;
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value=state.comments||'';
-  E.mode.value=state.end.mode||'electric';
   E.ffInp.value=state.end.ff||'';
   E.tfInp.value=state.end.tf||'';
   E.tripT.value=state.end.tripT||'';
@@ -1154,7 +1055,7 @@ function refreshImportAuthUI(){
 
 // Build SkyDemon-shaped rows from the Route Planner's localStorage state.
 function readRoutePlannerState(){
-  const raw=localStorage.getItem('velis_route_state');
+  const raw=localStorage.getItem('velis_da20_route_state');
   if(!raw) return null;
   try{return JSON.parse(raw);}catch(e){return null;}
 }
@@ -1220,7 +1121,7 @@ function rpSyncStatus(){
 }
 
 /* ═══ NAV → Route Planner push (after save / manual sync) ═══════════════
-   The Route Planner stores velis_route_state as
+   The Route Planner stores velis_da20_route_state as
      {approach, legs:[{alt,dist,name}], soh, soc0, res, oat, cruiseKw,
       depAlt, arrAlt, arrDist, depName, arrName, perfAdj}
    pushNavToRoutePlanner() writes the route-shape fields from NAV's current
@@ -1233,7 +1134,7 @@ function pushNavToRoutePlanner(){
   const parseDist=window.velisWp.parseDist;
   const cl=(n,lo,hi,fb)=>{const v=+n;return isFinite(v)?Math.max(lo,Math.min(hi,v)):fb;};
   let rp={};
-  try{const raw=localStorage.getItem('velis_route_state'); if(raw) rp=JSON.parse(raw)||{};}catch(e){rp={};}
+  try{const raw=localStorage.getItem('velis_da20_route_state'); if(raw) rp=JSON.parse(raw)||{};}catch(e){rp={};}
   const dep=route[0], arr=route[route.length-1];
   const depAlt=parseAlt(dep.alt), arrAlt=parseAlt(arr.alt), arrDist=parseDist(arr.dist);
   rp.depName=navRowName(dep);
@@ -1252,7 +1153,7 @@ function pushNavToRoutePlanner(){
     });
   }
   rp.legs=legs;
-  localStorage.setItem('velis_route_state',JSON.stringify(rp));
+  localStorage.setItem('velis_da20_route_state',JSON.stringify(rp));
   window.velisPlan&&window.velisPlan.markDirty();
   return true;
 }
@@ -1262,7 +1163,7 @@ function pushNavToRoutePlanner(){
 // to soften the popup wording so the user knows what they're agreeing to.
 function navIsInSyncWithRp(){
   if(!state||!Array.isArray(state.route)||state.route.length<3) return {inSync:true};
-  const rpRaw=localStorage.getItem('velis_route_state');
+  const rpRaw=localStorage.getItem('velis_da20_route_state');
   if(!rpRaw) return {inSync:true};            // first-time user: don't pester
   const st=rpSyncStatus();
   if(st.status==='no-rp') return {inSync:true};
@@ -1375,24 +1276,24 @@ refreshEndurance();
 window.addEventListener('pageshow',refreshEndurance);
 
 /* ═════════════════════════════════════════════════════════════════════
-   TAKEOFF / LANDING mini pictures — uses window.takeoffCalc
+   TAKEOFF / LANDING mini pictures — uses window.da20TakeoffCalc
    ═════════════════════════════════════════════════════════════════════ */
 async function renderToLdg(){
-  if(!window.takeoffCalc) return;
+  if(!window.da20TakeoffCalc) return;
   try{
-    const POH=await window.takeoffCalc.loadPOH();
-    const s=window.takeoffCalc.readState();
-    const to=window.takeoffCalc.computeTakeoff(POH,s);
-    const ld=window.takeoffCalc.computeLanding(POH,s);
-    const cond=`${s.alt.toLocaleString()} ft · ${s.oat>=0?'+':''}${s.oat}°C · ${s.wind===0?'calm':(s.wind>0?s.wind+' HW':Math.abs(s.wind)+' TW')} · ${s.surface}${s.condition==='wet'?' wet':''}${s.slope?(' · '+(s.slope>0?'+':'')+s.slope+'%'):''}`;
-    document.getElementById('toldg-cond-to').textContent=cond;
-    document.getElementById('toldg-cond-ld').textContent=cond;
-    document.getElementById('toldg-to-gr').textContent=' '+Math.round(to.gr)+' m';
-    document.getElementById('toldg-to-ob').textContent=' '+Math.round(to.ob)+' m';
-    document.getElementById('toldg-ld-gr').textContent=' '+Math.round(ld.gr)+' m';
-    document.getElementById('toldg-ld-ob').textContent=' '+Math.round(ld.ob)+' m';
-    window.takeoffCalc.drawTakeoff(document.getElementById('nav-svg-to'),to.gr,to.ob,{W:700,H:160,fontSize:10});
-    window.takeoffCalc.drawLanding(document.getElementById('nav-svg-ld'),ld.gr,ld.ob,{W:700,H:160,fontSize:10});
+    const POH=await window.da20TakeoffCalc.loadPOH();
+    const s=window.da20TakeoffCalc.readState();
+    const to=window.da20TakeoffCalc.computeTakeoff(POH,s);
+    const ld=window.da20TakeoffCalc.computeLanding(POH,s);
+    const condTo=`${s.pa.toLocaleString()} ft · ${s.oat>=0?'+':''}${s.oat}°C · ${s.weight} kg · ${s.hw===0?'calm':(s.hw>0?s.hw+' HW':Math.abs(s.hw)+' TW')} · ${s.oh} m obst`;
+    const condLd=`${s.pa.toLocaleString()} ft MSL · max wt · 55 KIAS`;
+    document.getElementById('toldg-cond-to').textContent=condTo;
+    document.getElementById('toldg-cond-ld').textContent=condLd;
+    document.getElementById('toldg-to-ob').textContent=' '+Math.round(to.dist)+' m';
+    document.getElementById('toldg-ld-gr').textContent=' '+Math.round(ld.roll)+' m';
+    document.getElementById('toldg-ld-ob').textContent=' '+Math.round(ld.total)+' m';
+    window.da20TakeoffCalc.drawTakeoff(document.getElementById('nav-svg-to'),to.dist,to.oh,{W:700,H:160,fontSize:10});
+    window.da20TakeoffCalc.drawLanding(document.getElementById('nav-svg-ld'),ld.total,ld.roll,{W:700,H:160,fontSize:10});
   }catch(e){/* POH fetch can fail when served from file://; ignore silently */}
 }
 // takeoff_calc.js is deferred; wait until DOM+deferred scripts have loaded
@@ -1401,7 +1302,7 @@ else renderToLdg();
 window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
-<script src="takeoff_calc.js" defer></script>
+<script src="da20_takeoff_calc.js" defer></script>
 <script src="plan_sync.js?v=20" defer></script>
 
 </body>
