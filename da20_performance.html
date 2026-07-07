@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diamond DA20-C1 — Performance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --bg-page:#f0ede8;--bg-card:#fff;--bg-sec:#f5f4f1;--bd:#e2ddd6;--bd2:#ccc8c0;
+  --tx:#1a1a1a;--tx2:#6b6660;--tx3:#9e9890;--rad-lg:14px;--rad-md:8px;
+  --blue:#185FA5;--blue-bg:#E6F1FB;--purple:#534AB7;--green:#3B6D11;--amber:#EF9F27;
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;background:var(--bg-page);font-family:var(--font);color:var(--tx);padding:0 0 48px;}
+.page-wrap{max-width:760px;margin:0 auto;padding:0 16px;}
+.nav{background:var(--bg-card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(255,255,255,0.92);}
+.nav-inner{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;}
+.wrap{padding:16px 0;}
+.card{background:var(--bg-card);border:0.5px solid var(--bd);border-radius:var(--rad-lg);padding:1rem 1.25rem;margin-bottom:14px;}
+h1{font-size:19px;font-weight:700;margin:0 0 2px;letter-spacing:-0.02em;}
+.sub{font-size:12px;color:var(--tx2);margin:0 0 14px;}
+h3{font-size:15px;font-weight:700;margin:0 0 14px;color:var(--tx);letter-spacing:-0.02em;display:flex;align-items:center;flex-wrap:wrap;gap:2px;}
+h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 6px;text-transform:uppercase;letter-spacing:0.05em;}
+.sec-divider{margin:26px 0 0;}
+.estimate-banner{background:#FFF7E6;border:1px solid #EDD79A;border-radius:var(--rad-md);padding:11px 14px;font-size:12px;color:#7A5B12;line-height:1.5;margin:16px 0 4px;display:flex;gap:10px;align-items:flex-start;}
+.estimate-banner svg{flex-shrink:0;margin-top:1px;color:#C98A16;}
+.estimate-banner strong{color:#5c440d;}
+.sr{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.sr label{font-size:12.5px;color:var(--tx2);min-width:150px;font-weight:500;}
+.sr input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:#ddd;outline:none;}
+.sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,0.15);cursor:pointer;}
+.sr input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer;}
+.sv{font-size:13px;font-weight:600;color:var(--tx);min-width:78px;text-align:right;}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tx2);margin-top:8px;cursor:pointer;}
+.chk input{accent-color:var(--blue);width:15px;height:15px;}
+.pwr-lbl{font-size:12.5px;color:var(--tx2);font-weight:500;margin:0 0 8px;}
+.pwr-btns{display:flex;gap:6px;margin-bottom:14px;}
+.pwr-btns button{flex:1;padding:11px;border:1px solid var(--bd);background:var(--bg-sec);border-radius:8px;font-family:inherit;font-size:14px;font-weight:700;color:var(--tx2);cursor:pointer;transition:all .12s;}
+.pwr-btns button:hover{border-color:var(--green);color:var(--green);}
+.pwr-btns button.active{background:var(--green);color:#fff;border-color:var(--green);}
+.result-hero{background:linear-gradient(135deg,#185FA5,#1b4e82);border-radius:var(--rad-lg);padding:20px 22px;color:#fff;margin-bottom:12px;}
+.result-hero .rh-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;opacity:0.85;margin:0 0 6px;}
+.result-hero .rh-val{font-size:44px;font-weight:700;letter-spacing:-0.03em;line-height:1;}
+.result-hero .rh-val small{font-size:17px;font-weight:600;opacity:0.85;}
+.result-hero .rh-sub{font-size:13px;opacity:0.85;margin-top:5px;font-weight:500;}
+.result-hero .rh-warn{font-size:11px;opacity:0.92;margin-top:11px;background:rgba(255,255,255,0.14);border-radius:6px;padding:7px 10px;display:none;}
+.result-hero.warn .rh-warn{display:block;}
+.breakdown{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.bd-item{background:var(--bg-sec);border-radius:var(--rad-md);padding:9px 11px;}
+.bd-lbl{font-size:10px;color:var(--tx2);margin:0 0 2px;font-weight:500;}
+.bd-val{font-size:15px;font-weight:700;color:var(--tx);letter-spacing:-0.01em;}
+.bd-val small{font-size:10px;color:var(--tx2);font-weight:500;}
+.refgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;}
+.ref{background:var(--bg-sec);border-radius:var(--rad-md);padding:10px 12px;}
+.ref .rl{font-size:10px;color:var(--tx2);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 3px;}
+.ref .rv{font-size:15px;font-weight:700;color:var(--tx);}
+.ref .rv small{font-size:11px;color:var(--tx2);font-weight:500;}
+.note{font-size:11px;color:var(--tx2);line-height:1.6;}
+.note strong{color:var(--tx);}
+hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px;}
+.chart{width:100%;height:auto;display:block;}
+.tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:2px 7px;border-radius:20px;margin-left:8px;}
+.tag.est{background:#FFF7E6;color:#8a5a12;border:1px solid #EDD79A;}
+.tag.verbatim{background:#EAF3DE;color:#3B6D11;border:1px solid #bcd99a;}
+.dtable{width:100%;border-collapse:collapse;font-size:11px;min-width:520px;}
+.dtable th,.dtable td{border:0.5px solid var(--bd);padding:5px 7px;text-align:center;}
+.dtable th{background:var(--bg-sec);font-weight:700;color:var(--tx2);}
+.dtable td.rl{text-align:left;font-weight:700;color:var(--tx2);background:var(--bg-sec);white-space:nowrap;}
+.tbl-scroll{overflow-x:auto;}
+@media(max-width:640px){.chart-grid{grid-template-columns:1fr;}.breakdown{grid-template-columns:1fr;}.refgrid{grid-template-columns:1fr;}.result-hero .rh-val{font-size:38px;}.sr label{min-width:120px;}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="nav-inner"></div></nav>
+
+<div class="page-wrap"><div class="wrap">
+
+  <h1>Performance</h1>
+  <p class="sub">Diamond DA20-C1 &mdash; climb performance, and the digitised source data behind the calculators</p>
+
+  <div class="estimate-banner">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div><strong>Planning estimate.</strong> Distances/rates here are digitised from the POH charts and interpolated &mdash; <strong>not verbatim</strong> (except the landing table). The Flight Manual is authoritative. <strong>Verify before flight.</strong></div>
+  </div>
+
+  <!-- ═══ CLIMB CALCULATOR ═══ -->
+  <div class="card">
+    <h3>Rate of climb</h3>
+    <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="14000" step="100" value="0"><span class="sv" id="v-pa">0 ft</span></div>
+    <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="i-oat" min="-20" max="45" step="1" value="15"><span class="sv" id="v-oat">+15 °C</span></div>
+    <label class="chk"><input type="checkbox" id="i-fair"> Without wheel fairings (POH: −3 % climb)</label>
+  </div>
+
+  <div class="result-hero" id="hero">
+    <p class="rh-lbl">Rate of climb — best ROC, Flaps CRUISE, 800 kg</p>
+    <div class="rh-val"><span id="rh-fpm">—</span> <small>ft/min</small></div>
+    <div class="rh-sub" id="rh-mmin">— m/min</div>
+    <div class="rh-warn" id="rh-warn"></div>
+  </div>
+
+  <div class="card">
+    <h4>Climb rate vs pressure altitude (at your OAT)</h4>
+    <div id="climb-graph"></div>
+    <div class="breakdown" style="margin-top:10px;">
+      <div class="bd-item"><div class="bd-lbl">Equivalent (density) altitude</div><div class="bd-val" id="bd-eq">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Base rate of climb</div><div class="bd-val" id="bd-base">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Fairings adjustment</div><div class="bd-val" id="bd-fair">—</div></div>
+    </div>
+    <div class="refgrid">
+      <div class="ref"><div class="rl">Best rate-of-climb speed</div><div class="rv">75 <small>KIAS</small></div></div>
+      <div class="ref"><div class="rl">Max cruising altitude (std)</div><div class="rv">13,120 <small>ft (4000 m)</small></div></div>
+    </div>
+    <p class="note" style="margin-top:12px;"><strong>Conditions:</strong> Flaps CRUISE, 800 kg, 75 KIAS. Equivalent altitude = pressure altitude corrected for temperature (density altitude). Without wheel fairings, climb reduced ~3 % (POH CAUTION). Reproduces the POH example (PA 2000 ft / 65 °F → 800 ft/min) exactly.</p>
+  </div>
+
+  <!-- ═══ CRUISE CALCULATOR ═══ -->
+  <div class="card">
+    <h3>Cruise performance</h3>
+    <p class="pwr-lbl">Power setting</p>
+    <div class="pwr-btns" id="c-pwr">
+      <button type="button" data-pct="55">55 %</button>
+      <button type="button" data-pct="65" class="active">65 %</button>
+      <button type="button" data-pct="75">75 %</button>
+    </div>
+    <div class="sr"><label>Pressure altitude</label><input type="range" id="c-pa" min="2000" max="10000" step="100" value="4000"><span class="sv" id="cv-pa">4,000 ft</span></div>
+    <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="c-oat" min="-35" max="40" step="1" value="7"><span class="sv" id="cv-oat">+7 °C</span></div>
+  </div>
+
+  <div class="result-hero" id="c-hero" style="background:linear-gradient(135deg,#3B6D11,#2c5209);">
+    <p class="rh-lbl"><span id="c-pctlbl">65</span> % cruise — true airspeed</p>
+    <div class="rh-val"><span id="c-ktas">—</span> <small>kt TAS</small></div>
+    <div class="rh-sub" id="c-sub">— L/hr fuel · set — RPM</div>
+    <div class="rh-warn" id="c-warn"></div>
+  </div>
+
+  <div class="card">
+    <div class="breakdown" style="grid-template-columns:repeat(4,1fr);">
+      <div class="bd-item"><div class="bd-lbl">RPM to set (checklist)</div><div class="bd-val" id="c-rpm">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Fuel flow</div><div class="bd-val" id="c-lph">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">(POH: gallons/hr)</div><div class="bd-val" id="c-gph">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Temp vs standard</div><div class="bd-val" id="c-dev">—</div></div>
+    </div>
+    <p class="note" style="margin-top:12px;"><strong>RPM to set is from the aircraft checklist</strong> (the real data, ISA) — the checklist and POH Table 3 use different RPM references, so the <strong>speed &amp; fuel are taken from POH Table 3 at the chosen %bhp</strong>, while the RPM shown is the checklist value you actually dial in. Fuel converted from US GPH to litres/hour (× 3.785). Temperature columns: −20 °C / standard / +10 °C. Verify against the POH before flight.</p>
+  </div>
+
+  <!-- ═══ SOURCE DATA ═══ -->
+  <h1 class="sec-divider">Source data</h1>
+  <p class="sub">Every dataset the DA20 calculators use, digitised from the POH &mdash; so you can eyeball it against the manual.</p>
+
+  <div class="card">
+    <h3>Takeoff <span style="font-weight:500;color:var(--tx2);font-size:12px;">— Fig 5.4</span><span class="tag est">calibrated estimate</span></h3>
+    <div class="chart-grid">
+      <div><h4>Base distance — temp × pressure alt (800 kg)</h4><div id="ch-to-base"></div></div>
+      <div><h4>Weight guide curves (labelled by 800 kg value)</h4><div id="ch-to-wt"></div></div>
+      <div><h4>Headwind guide curves (labelled by 0 kt value)</h4><div id="ch-to-hw"></div></div>
+      <div><h4>Obstacle-height curves (final distance)</h4><div id="ch-to-obs"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Landing <span style="font-weight:500;color:var(--tx2);font-size:12px;">— Table 4</span><span class="tag verbatim">verbatim POH</span></h3>
+    <div class="tbl-scroll" id="ld-table"></div>
+    <p class="note" style="margin-top:10px;">Conditions: throttle idle, max T/O weight, 55 KIAS approach, level paved runway, landing flaps. Varies with height above MSL only. Read directly from the manual.</p>
+  </div>
+
+  <div class="card">
+    <h3>Climb <span style="font-weight:500;color:var(--tx2);font-size:12px;">— Fig 5.5</span><span class="tag est">calibrated estimate</span></h3>
+    <div class="chart-grid">
+      <div><h4>Equivalent altitude — pressure-alt curves × OAT</h4><div id="ch-cl-eq"></div></div>
+      <div><h4>Rate of climb vs equivalent altitude</h4><div id="ch-cl-roc"></div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cruise <span style="font-weight:500;color:var(--tx2);font-size:12px;">— Table 3</span><span class="tag verbatim">verbatim POH</span></h3>
+    <div class="chart-grid">
+      <div><h4>True airspeed vs RPM (at standard temp)</h4><div id="ch-cr-ktas"></div></div>
+      <div><h4>Fuel flow vs RPM (L/hr, at standard temp)</h4><div id="ch-cr-fuel"></div></div>
+    </div>
+    <p class="note" style="margin-top:8px;">One line per pressure altitude. The calculator also interpolates the −20 °C / +10 °C temperature columns. POH lists fuel as US GPH; shown here in L/hr (× 3.785).</p>
+  </div>
+
+</div></div>
+
+<script>
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+  const n0=n=>Math.round(n).toLocaleString();
+  function lin(xs,ys,x){
+    if(x<=xs[0]){const s=(ys[1]-ys[0])/(xs[1]-xs[0]);return ys[0]+s*(x-xs[0]);}
+    if(x>=xs[xs.length-1]){const n=xs.length;const s=(ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]);return ys[n-1]+s*(x-xs[n-1]);}
+    for(let i=0;i<xs.length-1;i++){if(x>=xs[i]&&x<=xs[i+1]){const t=(x-xs[i])/(xs[i+1]-xs[i]);return ys[i]+t*(ys[i+1]-ys[i]);}}
+    return ys[ys.length-1];
+  }
+  const PAL=['#c0392b','#e67e22','#2980b9','#27ae60','#8e44ad','#16a085','#d81b60','#5d4037'];
+
+  // ── generic SVG line chart ──
+  function chart(o){
+    const w=o.w||520,h=o.h||250,pl=o.pl==null?46:o.pl,pr=o.pr==null?52:o.pr,pt=8,pb=o.pb==null?30:o.pb;
+    const iw=w-pl-pr, ih=h-pt-pb, xr=o.xr, yr=o.yr;
+    const sx=x=>pl+(x-xr[0])/(xr[1]-xr[0])*iw;
+    const sy=y=>pt+(1-(y-yr[0])/(yr[1]-yr[0]))*ih;
+    let s=`<svg viewBox="0 0 ${w} ${h}" class="chart">`;
+    (o.yticks||[]).forEach(v=>{const y=sy(v);s+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${pl+iw}" y2="${y.toFixed(1)}" stroke="#eee"/>`;
+      s+=`<text x="${pl-5}" y="${(y+3).toFixed(1)}" font-size="8" fill="#9e9890" text-anchor="end">${o.fmtY?o.fmtY(v):v}</text>`;});
+    (o.xticks||[]).forEach(v=>{const x=sx(v);s+=`<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${pt+ih}" stroke="#eee"/>`;
+      s+=`<text x="${x.toFixed(1)}" y="${pt+ih+12}" font-size="8" fill="#9e9890" text-anchor="middle">${o.fmtX?o.fmtX(v):v}</text>`;});
+    s+=`<line x1="${pl}" y1="${pt+ih}" x2="${pl+iw}" y2="${pt+ih}" stroke="#ccc8c0"/><line x1="${pl}" y1="${pt}" x2="${pl}" y2="${pt+ih}" stroke="#ccc8c0"/>`;
+    (o.series||[]).forEach(se=>{
+      const pts=se.pts.map(p=>`${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(' ');
+      s+=`<polyline points="${pts}" fill="none" stroke="${se.color}" stroke-width="${se.width||1.6}"${se.dash?` stroke-dasharray="${se.dash}"`:''}/>`;
+      if(se.label!=null){const L=se.pts[se.pts.length-1];s+=`<text x="${(sx(L[0])+3).toFixed(1)}" y="${(sy(L[1])+3).toFixed(1)}" font-size="7.5" fill="${se.color}" font-weight="700">${se.label}</text>`;}
+    });
+    if(o.marker)s+=`<circle cx="${sx(o.marker[0]).toFixed(1)}" cy="${sy(o.marker[1]).toFixed(1)}" r="4" fill="#185FA5" stroke="#fff" stroke-width="1.5"/>`;
+    if(o.xlab)s+=`<text x="${pl+iw/2}" y="${h-1}" font-size="8.5" fill="#6b6660" text-anchor="middle">${o.xlab}</text>`;
+    s+=`</svg>`;
+    return s;
+  }
+
+  let T=null,L=null,C=null,CR=null;
+
+  // ── cruise model: pick %power → checklist RPM (real) + POH Table 3 speed/fuel at that %bhp ──
+  let cPct=65;
+  const stdT=alt=>15-1.98*alt/1000;
+  function perfAtBhpAlt(alt,pct,oat){        // Table-3 KTAS & GPH at a target %bhp, one altitude
+    const d=CR.data[String(alt)], dev=Math.max(-20,Math.min(10,oat-stdT(alt)));
+    const bhp=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.bhp[ri],dev));
+    const ktas=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.ktas[ri],dev));
+    const gph=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.gph[ri],dev));
+    const maxB=Math.max.apply(null,bhp), minB=Math.min.apply(null,bhp);
+    const q=Math.max(minB,Math.min(maxB,pct));               // clamp to table range (no over-extrapolation past full throttle)
+    const idx=bhp.map((_,i)=>i).sort((a,b)=>bhp[a]-bhp[b]);   // ascending %bhp for lin()
+    const bs=idx.map(i=>bhp[i]);
+    return {ktas:lin(bs,idx.map(i=>ktas[i]),q), gph:lin(bs,idx.map(i=>gph[i]),q), maxBhp:maxB};
+  }
+  function perfAtBhp(pa,pct,oat){
+    const A=CR.alt_ft; let a0=A[0],a1=A[A.length-1];
+    for(let i=0;i<A.length-1;i++){if(pa>=A[i]&&pa<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+    if(pa<A[0]){a0=A[0];a1=A[1];} if(pa>A[A.length-1]){a0=A[A.length-2];a1=A[A.length-1];}
+    const v0=perfAtBhpAlt(a0,pct,oat),v1=perfAtBhpAlt(a1,pct,oat),f=a0===a1?0:(pa-a0)/(a1-a0),bl=(x,y)=>x+(y-x)*f;
+    return {ktas:bl(v0.ktas,v1.ktas),gph:bl(v0.gph,v1.gph),maxBhp:Math.min(v0.maxBhp,v1.maxBhp)};
+  }
+  function checklistRpm(pa,pct){             // ISA checklist RPM; null = full throttle (FT)
+    const ck=CR.checklist_rpm_isa, pi=ck.power_pct.indexOf(pct), A=ck.alt_ft;
+    const pac=Math.max(A[0],Math.min(A[A.length-1],pa)); let a0=A[0],a1=A[A.length-1];
+    for(let i=0;i<A.length-1;i++){if(pac>=A[i]&&pac<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+    const r0=ck.rpm[String(a0)][pi], r1=ck.rpm[String(a1)][pi];
+    if(r0==null||r1==null) return null;
+    return a0===a1?r0:r0+(r1-r0)*(pac-a0)/(a1-a0);
+  }
+  function updateCruise(){
+    const pa=+$('c-pa').value, oat=+$('c-oat').value, pct=cPct;
+    $('cv-pa').textContent=pa.toLocaleString()+' ft';
+    $('cv-oat').textContent=(oat>=0?'+':'')+oat+' °C';
+    $('c-pctlbl').textContent=pct;
+    if(!CR) return;
+    const p=perfAtBhp(pa,pct,oat), lph=p.gph*CR.gph_to_lph, rpm=checklistRpm(pa,pct), dev=oat-stdT(pa);
+    const rpmR=rpm==null?null:Math.round(rpm/10)*10;
+    $('c-ktas').textContent=Math.round(p.ktas);
+    $('c-sub').textContent=lph.toFixed(1)+' L/hr fuel · set '+(rpm==null?'full throttle':rpmR+' RPM');
+    $('c-rpm').innerHTML=rpm==null?'FT':rpmR+' <small>RPM</small>';
+    $('c-lph').innerHTML=lph.toFixed(1)+' <small>L/hr</small>';
+    $('c-gph').innerHTML=p.gph.toFixed(1)+' <small>US GPH</small>';
+    $('c-dev').innerHTML=(dev>=0?'+':'')+Math.round(dev)+' <small>°C</small>';
+    let msg='';
+    if(pct>p.maxBhp+0.5) msg='⚠ '+pct+' % exceeds the max power available at this altitude (~'+Math.round(p.maxBhp)+' % at full throttle) — speed/fuel extrapolated.';
+    else if(rpm==null) msg='⚠ At this altitude '+pct+' % is full throttle (checklist: FT).';
+    const hero=$('c-hero'); if(msg){hero.classList.add('warn');$('c-warn').textContent=msg;}else hero.classList.remove('warn');
+    if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
+  }
+  $('c-pwr').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    cPct=+b.dataset.pct;
+    $('c-pwr').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));
+    updateCruise();
+  }));
+  ['c-pa','c-oat'].forEach(id=>$(id).addEventListener('input',updateCruise));
+
+  // ── climb model ──
+  function curveAt(pa,oat){
+    const oats=C.equiv_alt.oat_c, vals=C.equiv_alt.equiv_alt_ft[String(pa)], xs=[],ys=[];
+    for(let i=0;i<oats.length;i++){ if(vals[i]!=null){ xs.push(oats[i]); ys.push(vals[i]); } }
+    return lin(xs,ys,oat);
+  }
+  function equivAlt(pa,oat){
+    const pas=C.equiv_alt.pa_ft; let p0=pas[0],p1=pas[pas.length-1];
+    for(let i=0;i<pas.length-1;i++){ if(pa>=pas[i]&&pa<=pas[i+1]){ p0=pas[i]; p1=pas[i+1]; break; } }
+    if(pa<pas[0]){p0=pas[0];p1=pas[1];} if(pa>pas[pas.length-1]){p0=pas[pas.length-2];p1=pas[pas.length-1];}
+    const e0=curveAt(p0,oat),e1=curveAt(p1,oat);
+    return p0===p1?e0:e0+(e1-e0)*(pa-p0)/(p1-p0);
+  }
+  function roc(eqa){ const e=C.roc_line.equivalt_ft,r=C.roc_line.roc_fpm; return r[0]+(r[1]-r[0])/(e[1]-e[0])*(eqa-e[0]); }
+
+  function update(){
+    const pa=+$('i-pa').value, oat=+$('i-oat').value, nofair=$('i-fair').checked;
+    $('v-pa').textContent=pa.toLocaleString()+' ft';
+    $('v-oat').textContent=(oat>=0?'+':'')+oat+' °C';
+    if(!C) return;
+    const eqa=equivAlt(pa,oat);
+    let base=roc(eqa); if(base<0) base=0;
+    const fpm=nofair? base*(1-C.no_fairings_penalty_pct/100):base;
+    $('rh-fpm').textContent=n0(fpm);
+    $('rh-mmin').textContent=n0(fpm*0.3048)+' m/min';
+    $('bd-eq').innerHTML=n0(eqa)+' <small>ft</small>';
+    $('bd-base').innerHTML=n0(base)+' <small>ft/min</small>';
+    $('bd-fair').textContent=nofair?'−'+C.no_fairings_penalty_pct+' %':'none';
+    let msg=''; if(fpm<=0) msg='⚠ At this density altitude the aircraft is at/above its ceiling — no positive climb.'; else if(pa>13120) msg='⚠ Above the 13,120 ft max cruising altitude (standard).';
+    const hero=$('hero'); if(msg){hero.classList.add('warn');$('rh-warn').textContent=msg;}else hero.classList.remove('warn');
+    // interactive climb graph: ROC vs PA at this OAT
+    const pts=[]; for(let p=0;p<=14000;p+=500){ let rc=roc(equivAlt(p,oat)); if(rc<0)rc=0; pts.push([p,nofair?rc*(1-C.no_fairings_penalty_pct/100):rc]); }
+    $('climb-graph').innerHTML=chart({h:230,series:[{pts,color:'#185FA5',width:2}],marker:[pa,fpm],
+      xr:[0,14000],yr:[0,1100],xticks:[0,2000,4000,6000,8000,10000,12000,14000],yticks:[0,200,400,600,800,1000],
+      fmtX:v=>(v/1000)+'k',xlab:'Pressure altitude (ft)  ·  y = ft/min'});
+    if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
+  }
+  ['i-pa','i-oat','i-fair'].forEach(id=>$(id).addEventListener('input',update));
+
+  // ── source-data charts (rendered once) ──
+  function renderSource(){
+    // Takeoff base surface
+    if(T){
+      const bs=T.base_surface_800kg, pas=Object.keys(bs).map(Number).sort((a,b)=>a-b);
+      const series=pas.map((pa,i)=>({pts:bs[String(pa)].oat_c.map((o,k)=>[o,bs[String(pa)].dist_m[k]]),color:PAL[i],label:pa===0?'SL':(pa/1000)+'k'}));
+      $('ch-to-base').innerHTML=chart({series,xr:[-20,45],yr:[100,900],xticks:[-20,0,20,40],yticks:[200,400,600,800],xlab:'OAT (°C)  ·  y = m'});
+      // weight guide curves (distance vs weight — all curves you read, labelled by 800 kg value)
+      const wgc=T.weight_guide_curves||{}, wlabs=Object.keys(wgc).map(Number).sort((a,b)=>a-b);
+      const wser=wlabs.map((l,i)=>{const ws=Object.keys(wgc[String(l)]).map(Number).sort((a,b)=>a-b);return {pts:ws.map(w=>[w,wgc[String(l)][w]]),color:PAL[i%PAL.length],label:l};});
+      $('ch-to-wt').innerHTML=chart({series:wser,xr:[600,800],yr:[200,760],xticks:[600,650,700,750,800],yticks:[300,500,700],xlab:'Weight (kg)  ·  y = m'});
+      // headwind guide curves (distance vs headwind — all curves, labelled by 0 kt value)
+      const hgc=T.headwind_guide_curves||{}, hlabs=Object.keys(hgc).map(Number).sort((a,b)=>a-b);
+      const hser=hlabs.map((l,i)=>{const hs=Object.keys(hgc[String(l)]).map(Number).sort((a,b)=>a-b);return {pts:hs.map(hh=>[hh,hgc[String(l)][hh]]),color:PAL[i%PAL.length],label:l};});
+      $('ch-to-hw').innerHTML=chart({series:hser,xr:[-5,20],yr:[150,850],xticks:[-5,0,5,10,15,20],yticks:[200,400,600,800],xlab:'Headwind (kt)  ·  y = m'});
+      // obstacle curves
+      const oc=T.obstacle_curves, labs=Object.keys(oc).map(Number).sort((a,b)=>a-b);
+      const oser=labs.map((l,i)=>{const hs=Object.keys(oc[String(l)]).map(Number).sort((a,b)=>a-b);return {pts:hs.map(hh=>[hh,oc[String(l)][hh]]),color:PAL[i%PAL.length],label:l};});
+      $('ch-to-obs').innerHTML=chart({series:oser,xr:[0,15],yr:[150,1200],xticks:[0,5,10,15],yticks:[200,500,800,1100],xlab:'Obstacle height (m)  ·  y = m'});
+    }
+    // Landing table
+    if(L){
+      let t='<table class="dtable"><tr><td class="rl">Height MSL (ft)</td>'+L.height_msl_ft.map(v=>'<th>'+v.toLocaleString()+'</th>').join('')+'</tr>';
+      t+='<tr><td class="rl">Landing dist (m)</td>'+L.landing_distance_m.map(v=>'<td>'+v+'</td>').join('')+'</tr>';
+      t+='<tr><td class="rl">Landing dist (ft)</td>'+L.landing_distance_ft.map(v=>'<td>'+v.toLocaleString()+'</td>').join('')+'</tr>';
+      t+='<tr><td class="rl">Landing roll (m)</td>'+L.landing_roll_m.map(v=>'<td>'+v+'</td>').join('')+'</tr>';
+      t+='<tr><td class="rl">Landing roll (ft)</td>'+L.landing_roll_ft.map(v=>'<td>'+v+'</td>').join('')+'</tr></table>';
+      $('ld-table').innerHTML=t;
+    }
+    // Climb source charts
+    if(C){
+      const pas=C.equiv_alt.pa_ft, oats=C.equiv_alt.oat_c;
+      const eser=pas.map((pa,i)=>{const v=C.equiv_alt.equiv_alt_ft[String(pa)],pts=[];for(let k=0;k<oats.length;k++)if(v[k]!=null)pts.push([oats[k],v[k]]);return {pts,color:PAL[i%PAL.length],label:pa===0?'SL':(pa/1000)+'k'};});
+      $('ch-cl-eq').innerHTML=chart({series:eser,xr:[-20,40],yr:[-2000,14000],xticks:[-20,0,20,40],yticks:[0,4000,8000,12000],fmtY:v=>(v/1000)+'k',xlab:'OAT (°C)  ·  y = equiv alt (ft)'});
+      const e=C.roc_line.equivalt_ft,r=C.roc_line.roc_fpm,slope=(r[1]-r[0])/(e[1]-e[0]);
+      const rl=[]; for(let ea=-2000;ea<=18000;ea+=2000){let rc=r[0]+slope*(ea-e[0]);rl.push([ea,Math.max(0,rc)]);}
+      $('ch-cl-roc').innerHTML=chart({series:[{pts:rl,color:'#185FA5',width:2}],xr:[-2000,18000],yr:[0,1100],xticks:[0,6000,12000,18000],yticks:[0,300,600,900],fmtX:v=>(v/1000)+'k',xlab:'Equivalent altitude (ft)  ·  y = ft/min'});
+    }
+    // Cruise source charts (at standard temp = column index 1)
+    if(CR){
+      const kser=[],fser=[];
+      CR.alt_ft.forEach((a,i)=>{
+        const d=CR.data[String(a)];
+        kser.push({pts:d.rpm.map((rp,ri)=>[rp,d.ktas[ri][1]]).sort((x,y)=>x[0]-y[0]),color:PAL[i%PAL.length],label:(a/1000)+'k'});
+        fser.push({pts:d.rpm.map((rp,ri)=>[rp,d.gph[ri][1]*CR.gph_to_lph]).sort((x,y)=>x[0]-y[0]),color:PAL[i%PAL.length],label:(a/1000)+'k'});
+      });
+      $('ch-cr-ktas').innerHTML=chart({series:kser,xr:[2400,2800],yr:[105,132],xticks:[2400,2600,2800],yticks:[110,120,130],xlab:'RPM  ·  y = KTAS'});
+      $('ch-cr-fuel').innerHTML=chart({series:fser,xr:[2400,2800],yr:[17,34],xticks:[2400,2600,2800],yticks:[20,25,30],xlab:'RPM  ·  y = L/hr'});
+    }
+  }
+
+  Promise.all([
+    fetch('da20_c1_takeoff.json').then(r=>r.json()).catch(()=>null),
+    fetch('da20_c1_landing.json').then(r=>r.json()).catch(()=>null),
+    fetch('da20_c1_climb.json').then(r=>r.json()).catch(()=>null),
+    fetch('da20_c1_cruise.json').then(r=>r.json()).catch(()=>null),
+  ]).then(([t,l,c,cr])=>{ T=t; L=l; C=c; CR=cr; renderSource(); update(); updateCruise(); });
+  update();
+  updateCruise();
+})();
+</script>
+<script src="plan_sync.js?v=19" defer></script>
+</body>
+</html>

@@ -29,7 +29,6 @@
 body{margin:0;background:var(--bg-page);font-family:var(--font);color:var(--tx);padding:0 0 48px;}
 .page-wrap{max-width:720px;margin:0 auto;padding:0 16px;}
 
-/* ── Nav (shell; plan_sync.js fills it) ── */
 .nav{background:var(--bg-card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(255,255,255,0.92);}
 .nav-inner{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;}
 
@@ -40,28 +39,31 @@ h1{font-size:19px;font-weight:700;margin:0 0 2px;letter-spacing:-0.02em;}
 h3{font-size:15px;font-weight:700;margin:0 0 14px;color:var(--tx);letter-spacing:-0.02em;}
 h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 8px;text-transform:uppercase;letter-spacing:0.06em;}
 
-/* ── Estimate banner ── */
 .estimate-banner{background:#FFF7E6;border:1px solid #EDD79A;border-radius:var(--rad-md);padding:11px 14px;font-size:12px;color:#7A5B12;line-height:1.5;margin:16px 0 4px;display:flex;gap:10px;align-items:flex-start;}
 .estimate-banner svg{flex-shrink:0;margin-top:1px;color:#C98A16;}
 .estimate-banner strong{color:#5c440d;}
 
-/* ── Slider rows ── */
 .sr{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
 .sr label{font-size:12.5px;color:var(--tx2);min-width:150px;font-weight:500;}
 .sr input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:#ddd;outline:none;}
 .sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,0.15);cursor:pointer;}
 .sr input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer;}
 .sv{font-size:13px;font-weight:600;color:var(--tx);min-width:78px;text-align:right;}
-.sv small{font-size:10px;color:var(--tx2);font-weight:500;}
 
-/* ── Result ── */
-.result-hero{background:linear-gradient(135deg,#185FA5,#1b4e82);border-radius:var(--rad-lg);padding:20px 22px;color:#fff;margin-bottom:12px;}
-.result-hero .rh-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;opacity:0.85;margin:0 0 6px;}
-.result-hero .rh-val{font-size:40px;font-weight:700;letter-spacing:-0.03em;line-height:1;}
-.result-hero .rh-val small{font-size:16px;font-weight:600;opacity:0.85;}
-.result-hero .rh-ft{font-size:13px;opacity:0.85;margin-top:4px;font-weight:500;}
-.result-hero .rh-warn{font-size:11px;opacity:0.9;margin-top:10px;background:rgba(255,255,255,0.14);border-radius:6px;padding:6px 9px;display:none;}
-.result-hero.oob .rh-warn{display:block;}
+/* ── Takeoff-distance diagram + result ── */
+#svg-to{display:block;width:100%;min-width:320px;margin:2px 0 10px;}
+.res-box{background:var(--bg-sec);border-radius:var(--rad-md);padding:14px 16px;border-left:4px solid var(--green);}
+.res-lbl{font-size:12px;color:var(--tx2);font-weight:500;margin:0 0 5px;}
+.res-val{font-size:36px;font-weight:700;color:var(--tx);letter-spacing:-0.02em;line-height:1;}
+.res-val small{font-size:15px;font-weight:600;color:var(--tx2);}
+.res-unit{font-size:12px;color:var(--tx2);font-weight:500;margin-top:4px;}
+.res-warn{font-size:11px;color:#8a5a12;background:#FFF7E6;border:1px solid #EDD79A;border-radius:6px;padding:7px 10px;margin-top:10px;line-height:1.4;display:none;}
+.res-warn.show{display:block;}
+.ld-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tx2);margin-top:8px;cursor:pointer;}
+.chk input{accent-color:var(--blue);width:15px;height:15px;}
+.sec-divider{margin:26px 0 0;}
+@media(max-width:600px){.ld-cards{grid-template-columns:1fr;}}
 
 .breakdown{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 .bd-item{background:var(--bg-sec);border-radius:var(--rad-md);padding:9px 11px;}
@@ -71,9 +73,8 @@ h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 8px;text-transfo
 
 .note{font-size:11px;color:var(--tx2);line-height:1.6;}
 .note strong{color:var(--tx);}
-.cond{font-size:11px;color:var(--tx2);line-height:1.6;}
 hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
-@media(max-width:600px){.sr label{min-width:120px;}.result-hero .rh-val{font-size:34px;}}
+@media(max-width:600px){.sr label{min-width:120px;}.res-val{font-size:30px;}}
 </style>
 </head>
 <body>
@@ -93,17 +94,21 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
   <div class="card">
     <h3>Conditions</h3>
     <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="i-oat" min="-20" max="45" step="1" value="15"><span class="sv" id="v-oat">+15 °C</span></div>
-    <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="6000" step="100" value="0"><span class="sv" id="v-pa">0 ft</span></div>
+    <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="6000" step="25" value="0"><span class="sv" id="v-pa">0 ft</span></div>
     <div class="sr"><label>Gross weight</label><input type="range" id="i-w" min="600" max="800" step="5" value="800"><span class="sv" id="v-w">800 kg</span></div>
     <div class="sr"><label>Headwind</label><input type="range" id="i-hw" min="-5" max="20" step="1" value="0"><span class="sv" id="v-hw">0 kt</span></div>
     <div class="sr"><label>Obstacle height</label><input type="range" id="i-oh" min="0" max="15" step="0.5" value="5"><span class="sv" id="v-oh">5.0 m</span></div>
   </div>
 
-  <div class="result-hero" id="hero">
-    <p class="rh-lbl" id="rh-lbl">Takeoff distance — to clear 5 m obstacle</p>
-    <div class="rh-val"><span id="rh-m">—</span> <small>m</small></div>
-    <div class="rh-ft" id="rh-ft">— ft</div>
-    <div class="rh-warn" id="rh-warn"></div>
+  <div class="card">
+    <h3>Takeoff distance</h3>
+    <svg id="svg-to" viewBox="0 0 700 150" role="img" aria-label="Takeoff distance profile"></svg>
+    <div class="res-box">
+      <div class="res-lbl" id="r-lbl">Distance to clear 5 m obstacle</div>
+      <div class="res-val"><span id="r-dist">—</span> <small>m</small></div>
+      <div class="res-unit" id="r-ft">— ft</div>
+      <div class="res-warn" id="r-warn"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -112,10 +117,32 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
       <div class="bd-item"><div class="bd-lbl">Base (OAT × alt, 800 kg, 0 kt)</div><div class="bd-val" id="bd-base">—</div></div>
       <div class="bd-item"><div class="bd-lbl">× Weight factor</div><div class="bd-val" id="bd-w">—</div></div>
       <div class="bd-item"><div class="bd-lbl">× Headwind factor</div><div class="bd-val" id="bd-hw">—</div></div>
-      <div class="bd-item"><div class="bd-lbl">Ground run (0 m obstacle)</div><div class="bd-val" id="bd-ground">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Distance at 0 m obstacle</div><div class="bd-val" id="bd-ground">—</div></div>
     </div>
     <hr>
-    <p class="note"><strong>Conditions modelled:</strong> max takeoff power, 52 KIAS liftoff, level paved runway, T/O flap. Poor maintenance, unfavourable conditions (rain, crosswind, high temp) can increase distance considerably. Model calibrated to Fig 5.4 (Rev 27/28); reproduces the POH worked example within ~6&nbsp;% on the conservative side.</p>
+    <p class="note"><strong>Ground roll is not shown</strong> — the POH takeoff chart provides only the distance to clear an obstacle, not a separate ground-roll figure, so no lift-off distance is calculated.</p>
+    <p class="note" style="margin-top:8px;"><strong>Conditions modelled:</strong> max takeoff power, 52 KIAS liftoff, level paved runway, T/O flap. Poor maintenance or unfavourable conditions (rain, crosswind, high temp) can increase distance considerably. Calibrated to Fig 5.4 (Rev 27/28); reproduces the POH worked example within ~6 % on the conservative side.</p>
+  </div>
+
+  <h1 class="sec-divider">Landing</h1>
+  <p class="sub">Diamond DA20-C1 &mdash; landing &amp; rolling distance (POH Table 4)</p>
+
+  <div class="card">
+    <h3>Conditions</h3>
+    <div class="sr"><label>Height above MSL</label><input type="range" id="l-alt" min="0" max="7000" step="25" value="0"><span class="sv" id="lv-alt">0 ft</span></div>
+    <label class="chk"><input type="checkbox" id="l-idle"> Ground idle set to 1000 RPM (POH: +5 % landing, +7 % roll)</label>
+    <p class="note" style="margin-top:10px;"><strong>Fixed by the chart:</strong> max T/O weight, 55 KIAS approach, standard temperature, level paved runway, landing flaps. The POH table varies with <strong>height above MSL only</strong>.</p>
+  </div>
+
+  <div class="card">
+    <h3>Landing distance</h3>
+    <svg id="svg-ld" viewBox="0 0 700 150" role="img" aria-label="Landing distance profile"></svg>
+    <div class="ld-cards">
+      <div class="res-box" style="border-left-color:var(--green);"><div class="res-lbl">Over 50 ft obstacle</div><div class="res-val"><span id="ld-total">—</span> <small>m</small></div><div class="res-unit" id="ld-total-ft">— ft</div></div>
+      <div class="res-box" style="border-left-color:var(--purple);"><div class="res-lbl">Landing roll</div><div class="res-val"><span id="ld-roll">—</span> <small>m</small></div><div class="res-unit" id="ld-roll-ft">— ft</div></div>
+    </div>
+    <hr>
+    <p class="note"><strong>Verbatim POH values</strong> (Table 4), interpolated between the tabulated MSL heights &mdash; these are read directly from the manual, not model-derived. Unfavourable conditions (high temp, rain, wind, slippery runway) can increase the distance considerably. <strong>Verify against the POH before flight.</strong></p>
   </div>
 
 </div></div>
@@ -123,33 +150,24 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
 <script>
 (function(){
   "use strict";
-  // ── generic piecewise-linear interpolation (extrapolates linearly at ends) ──
   function lin(xs,ys,x){
     if(x<=xs[0]){ const s=(ys[1]-ys[0])/(xs[1]-xs[0]); return ys[0]+s*(x-xs[0]); }
     if(x>=xs[xs.length-1]){ const n=xs.length; const s=(ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]); return ys[n-1]+s*(x-xs[n-1]); }
     for(let i=0;i<xs.length-1;i++){ if(x>=xs[i]&&x<=xs[i+1]){ const t=(x-xs[i])/(xs[i+1]-xs[i]); return ys[i]+t*(ys[i+1]-ys[i]); } }
     return ys[ys.length-1];
   }
-
-  let M=null;                       // model built from the JSON
+  let M=null, L=null;
   function buildModel(j){
-    // base surface: rows keyed by pressure altitude
     const rows=Object.keys(j.base_surface_800kg).map(Number).sort((a,b)=>a-b);
     const base_rows={};
     rows.forEach(pa=>{ const r=j.base_surface_800kg[String(pa)]; base_rows[pa]={oat:r.oat_c,d:r.dist_m}; });
-    // weight + headwind factor tables
     const wk=Object.keys(j.weight_factor).map(Number).sort((a,b)=>a-b);
     const wf=wk.map(k=>j.weight_factor[String(k)]);
     const hk=Object.keys(j.headwind_factor_0kt).map(Number).sort((a,b)=>a-b);
     const hf=hk.map(k=>j.headwind_factor_0kt[String(k)]);
-    // obstacle curves: label -> {heights[], vals[]}
     const oc={};
     const olabels=Object.keys(j.obstacle_curves).map(Number).sort((a,b)=>a-b);
-    olabels.forEach(l=>{
-      const c=j.obstacle_curves[String(l)];
-      const hs=Object.keys(c).map(Number).sort((a,b)=>a-b);
-      oc[l]={hs:hs, vs:hs.map(h=>c[h])};
-    });
+    olabels.forEach(l=>{ const c=j.obstacle_curves[String(l)]; const hs=Object.keys(c).map(Number).sort((a,b)=>a-b); oc[l]={hs:hs, vs:hs.map(h=>c[h])}; });
     return {rows,base_rows,wk,wf,hk,hf,oc,olabels};
   }
   function base(oat,pa){
@@ -176,9 +194,42 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
 
   const $=id=>document.getElementById(id);
   const M2FT=3.28084;
-  function readInputs(){
-    return { oat:+$('i-oat').value, pa:+$('i-pa').value, w:+$('i-w').value, hw:+$('i-hw').value, oh:+$('i-oh').value };
+  const n0=n=>Math.round(n).toLocaleString();
+  const fmtOh=h=>(h%1===0)?h.toFixed(0):h.toFixed(1);
+
+  function drawDiagram(total, obsH){
+    const svg=$('svg-to'); if(!svg) return;
+    const W=700,H=150,ML=22,MR=120,MT=26,MB=28;
+    const IW=W-ML-MR;
+    const runY=H-MB-14, topY=MT+18, fullH=runY-topY;
+    const frac=Math.max(0,Math.min(1,obsH/15));
+    const obstX=ML+IW;
+    const obstY=runY-fullH*frac;
+    const ftH=Math.round(obsH*M2FT);
+    let h='';
+    h+=`<rect x="${ML}" y="${runY}" width="${IW}" height="3" fill="#ccc" rx="1"/>`;
+    if(obsH>0.05){
+      const c1x=ML+IW*0.55, c1y=runY;
+      const c2x=obstX-IW*0.12, c2y=runY-fullH*frac*0.35;
+      h+=`<path d="M${ML},${runY} C${c1x},${c1y} ${c2x},${c2y} ${obstX},${obstY}" fill="none" stroke="#3B6D11" stroke-width="2.5"/>`;
+      h+=`<line x1="${obstX}" y1="${runY}" x2="${obstX}" y2="${obstY}" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+      h+=`<text x="${obstX+8}" y="${(runY+obstY)/2+3}" font-size="10.5" fill="#EF9F27" font-weight="600">${fmtOh(obsH)} m</text>`;
+      h+=`<text x="${obstX+8}" y="${(runY+obstY)/2+16}" font-size="9" fill="#EF9F27">${ftH} ft</text>`;
+    } else {
+      h+=`<line x1="${ML}" y1="${runY}" x2="${obstX}" y2="${runY}" stroke="#3B6D11" stroke-width="2.5"/>`;
+    }
+    h+=`<line x1="${ML}" y1="${MT+6}" x2="${obstX}" y2="${MT+6}" stroke="#3B6D11" stroke-width="1"/>`;
+    h+=`<polygon points="${ML},${MT+3} ${ML+6},${MT+6} ${ML},${MT+9}" fill="#3B6D11"/>`;
+    h+=`<polygon points="${obstX},${MT+3} ${obstX-6},${MT+6} ${obstX},${MT+9}" fill="#3B6D11"/>`;
+    const lbl = obsH>0.05 ? `Distance to clear ${fmtOh(obsH)} m obstacle: ${n0(total)} m` : `Ground distance (no obstacle): ${n0(total)} m`;
+    h+=`<text x="${(ML+obstX)/2}" y="${MT}" font-size="10.5" fill="#3B6D11" text-anchor="middle" font-weight="600">${lbl}</text>`;
+    h+=`<text x="${ML}" y="${runY-9}" font-size="8.5" fill="#6b6660" text-anchor="middle">V = 0</text>`;
+    h+=`<circle cx="${ML}" cy="${runY}" r="4" fill="#185FA5"/>`;
+    h+=`<circle cx="${obstX}" cy="${obstY}" r="4.5" fill="#3B6D11"/>`;
+    svg.innerHTML=h;
   }
+
+  function readInputs(){ return { oat:+$('i-oat').value, pa:+$('i-pa').value, w:+$('i-w').value, hw:+$('i-hw').value, oh:+$('i-oh').value }; }
   function fmtSigned(n,unit){ return (n>=0?'+':'')+n+' '+unit; }
   function update(){
     const s=readInputs();
@@ -186,37 +237,89 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     $('v-pa').textContent=s.pa.toLocaleString()+' ft';
     $('v-w').textContent=s.w+' kg';
     $('v-hw').textContent=(s.hw>=0? s.hw+' kt' : Math.abs(s.hw)+' kt tail');
-    $('v-oh').textContent=s.oh.toFixed(1)+' m';
+    $('v-oh').textContent=fmtOh(s.oh)+' m';
     if(!M) return;
     const b=base(s.oat,s.pa);
     const kw=fW(s.w), kh=fH(s.hw)/fH(0);
-    const ground=b*kw*kh;                 // pre-obstacle "Total Take-off Distance"
-    const dist=obstacle(ground,s.oh);     // to clear the obstacle
-    $('rh-lbl').textContent='Takeoff distance — '+(s.oh>0?('to clear '+s.oh.toFixed(1)+' m obstacle'):'ground run (no obstacle)');
-    $('rh-m').textContent=Math.round(dist).toLocaleString();
-    $('rh-ft').textContent=Math.round(dist*M2FT).toLocaleString()+' ft';
+    const ground=b*kw*kh;
+    const dist=obstacle(ground,s.oh);
+    drawDiagram(dist, s.oh);
+    $('r-lbl').textContent = s.oh>0.05 ? `Distance to clear ${fmtOh(s.oh)} m obstacle` : 'Ground distance (no obstacle)';
+    $('r-dist').textContent=n0(dist);
+    $('r-ft').textContent=n0(dist*M2FT)+' ft';
     $('bd-base').innerHTML=Math.round(b)+' <small>m</small>';
     $('bd-w').textContent='× '+kw.toFixed(3);
     $('bd-hw').textContent='× '+kh.toFixed(3);
     $('bd-ground').innerHTML=Math.round(ground)+' <small>m</small>';
-    // out-of-range advisory
     const oob=[];
     if(s.pa>6000) oob.push('pressure altitude above 6000 ft is extrapolated');
     if(s.oat>40) oob.push('OAT above 40 °C is extrapolated');
-    if(s.oh>15) oob.push('obstacle above 15 m is extrapolated');
-    const hero=$('hero');
-    if(oob.length){ hero.classList.add('oob'); $('rh-warn').textContent='⚠ '+oob.join('; ')+' — treat with extra caution.'; }
-    else hero.classList.remove('oob');
+    const warn=$('r-warn');
+    if(oob.length){ warn.classList.add('show'); warn.textContent='⚠ '+oob.join('; ')+' — treat with extra caution.'; }
+    else warn.classList.remove('show');
     if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
   }
 
   ['i-oat','i-pa','i-w','i-hw','i-oh'].forEach(id=>$(id).addEventListener('input',update));
-
   fetch('da20_c1_takeoff.json').then(r=>r.json()).then(j=>{ M=buildModel(j); update(); })
-    .catch(e=>{ $('rh-m').textContent='!'; $('rh-lbl').textContent='Could not load da20_c1_takeoff.json'; console.error(e); });
+    .catch(e=>{ $('r-dist').textContent='!'; $('r-lbl').textContent='Could not load da20_c1_takeoff.json'; console.error(e); });
   update();
+
+  // ─────────── LANDING (POH Table 4 — direct lookup) ───────────
+  function drawLanding(total, roll){
+    const svg=$('svg-ld'); if(!svg) return;
+    const W=700,H=150,ML=22,MR=40,MT=26,MB=42;
+    const IW=W-ML-MR;
+    const runY=H-MB-14, topY=MT+18;
+    const scale=IW/Math.max(total,1);
+    const airborne=Math.max(total-roll,0);
+    const tdX=ML+airborne*scale, stopX=ML+total*scale, obstY=topY;
+    let h='';
+    h+=`<rect x="${ML}" y="${runY}" width="${IW}" height="3" fill="#ccc" rx="1"/>`;
+    h+=`<rect x="${tdX}" y="${runY-4}" width="${stopX-tdX}" height="6" fill="#534AB7" rx="2" opacity="0.7"/>`;
+    const c1x=ML+airborne*scale*0.45, c1y=obstY+(runY-obstY)*0.35;
+    const c2x=tdX-airborne*scale*0.15, c2y=runY;
+    h+=`<path d="M${ML},${obstY} C${c1x},${c1y} ${c2x},${c2y} ${tdX},${runY}" fill="none" stroke="#3B6D11" stroke-width="2.5"/>`;
+    h+=`<line x1="${ML}" y1="${runY}" x2="${ML}" y2="${obstY}" stroke="#EF9F27" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+    h+=`<text x="${ML+6}" y="${obstY-3}" font-size="10.5" fill="#EF9F27" font-weight="600">50 ft (15 m)</text>`;
+    h+=`<line x1="${ML}" y1="${MT+6}" x2="${stopX}" y2="${MT+6}" stroke="#3B6D11" stroke-width="1"/>`;
+    h+=`<polygon points="${ML},${MT+3} ${ML+6},${MT+6} ${ML},${MT+9}" fill="#3B6D11"/>`;
+    h+=`<polygon points="${stopX},${MT+3} ${stopX-6},${MT+6} ${stopX},${MT+9}" fill="#3B6D11"/>`;
+    h+=`<text x="${(ML+stopX)/2}" y="${MT}" font-size="10.5" fill="#3B6D11" text-anchor="middle" font-weight="600">Landing distance over 50 ft obstacle: ${n0(total)} m</text>`;
+    if(stopX-tdX>60){
+      h+=`<line x1="${tdX}" y1="${runY+16}" x2="${stopX}" y2="${runY+16}" stroke="#534AB7" stroke-width="1"/>`;
+      h+=`<polygon points="${tdX},${runY+13} ${tdX+6},${runY+16} ${tdX},${runY+19}" fill="#534AB7"/>`;
+      h+=`<polygon points="${stopX},${runY+13} ${stopX-6},${runY+16} ${stopX},${runY+19}" fill="#534AB7"/>`;
+      h+=`<text x="${(tdX+stopX)/2}" y="${runY+28}" font-size="9" fill="#534AB7" text-anchor="middle" font-weight="600">Landing roll: ${n0(roll)} m</text>`;
+    }
+    h+=`<text x="${tdX}" y="${runY-9}" font-size="8.5" fill="#534AB7" text-anchor="middle" font-weight="500">Touchdown</text>`;
+    h+=`<text x="${stopX}" y="${runY-9}" font-size="8.5" fill="#6b6660" text-anchor="middle">Stop</text>`;
+    h+=`<circle cx="${ML}" cy="${obstY}" r="4.5" fill="#3B6D11"/>`;
+    h+=`<circle cx="${tdX}" cy="${runY}" r="4" fill="#534AB7"/>`;
+    h+=`<circle cx="${stopX}" cy="${runY}" r="4" fill="#534AB7"/>`;
+    svg.innerHTML=h;
+  }
+  function updateLanding(){
+    const alt=+$('l-alt').value, idle=$('l-idle').checked;
+    $('lv-alt').textContent=alt.toLocaleString()+' ft';
+    if(!L) return;
+    const landF=idle?1+L.ground_idle_1000rpm.landing_pct/100:1;
+    const rollF=idle?1+L.ground_idle_1000rpm.roll_pct/100:1;
+    const tm=lin(L.height_msl_ft,L.landing_distance_m,alt)*landF;
+    const tf=lin(L.height_msl_ft,L.landing_distance_ft,alt)*landF;
+    const rm=lin(L.height_msl_ft,L.landing_roll_m,alt)*rollF;
+    const rft=lin(L.height_msl_ft,L.landing_roll_ft,alt)*rollF;
+    drawLanding(tm,rm);
+    $('ld-total').textContent=n0(tm); $('ld-total-ft').textContent=n0(tf)+' ft';
+    $('ld-roll').textContent=n0(rm);  $('ld-roll-ft').textContent=n0(rft)+' ft';
+    if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
+  }
+  ['l-alt','l-idle'].forEach(id=>$(id).addEventListener('input',updateLanding));
+  fetch('da20_c1_landing.json').then(r=>r.json()).then(j=>{ L=j; updateLanding(); })
+    .catch(e=>{ $('ld-total').textContent='!'; console.error(e); });
+  updateLanding();
 })();
 </script>
-<script src="plan_sync.js?v=18" defer></script>
+<script src="plan_sync.js?v=19" defer></script>
 </body>
 </html>

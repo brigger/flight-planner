@@ -62,6 +62,7 @@ window.velisWp = (function(){
     ]},
     { id:'da20', name:'Diamond DA20-C1', tabs:[
       { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
+      { type:'perf',    href:'da20_performance.html',  label:'Performance'       },
     ]},
   ];
   // Shared across all aircraft (same page regardless of selection).

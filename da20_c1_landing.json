@@ -1,0 +1,16 @@
+{
+ "model": "DA20-C1 Landing & Rolling Distance — POH Table 4. Direct lookup (not a nomogram); values read verbatim.",
+ "source": "Diamond DA20-C1 Flight Manual, Table 4 — Landing and Rolling Distances for Heights Above MSL (DOC# DA202-C1, Rev 27)",
+ "conditions": "Throttle idle, max T/O weight, 55 KIAS approach, level paved runway, landing flaps, standard MSL. Distance varies with height above MSL only.",
+ "obstacle_ft": 50,
+ "obstacle_m": 15,
+ "approach_kias": 55,
+ "height_msl_ft": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000],
+ "landing_distance_m": [415, 423, 432, 441, 450, 461, 471, 482],
+ "landing_distance_ft": [1360, 1387, 1417, 1447, 1478, 1511, 1545, 1580],
+ "landing_roll_m": [201, 207, 214, 220, 227, 234, 241, 248],
+ "landing_roll_ft": [661, 680, 701, 722, 744, 767, 791, 815],
+ "ground_idle_1000rpm": { "landing_pct": 5, "roll_pct": 7 },
+ "disclaimer": "Poor maintenance or unfavourable conditions (high temperature, rain, wind, slippery runway) can increase landing distance considerably. The POH is authoritative — verify before flight.",
+ "notes": "Verbatim POH table; interpolated linearly between the tabulated MSL heights. Ground idle set to 1000 RPM increases landing distance ~5% and ground roll ~7%."
+}

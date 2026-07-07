@@ -1,0 +1,97 @@
+{
+ "model": "DA20-C1 Climb Performance / Cruising Altitudes \u2014 Fig 5.5. CALIBRATED ESTIMATE from the nomogram; verify vs POH.",
+ "source": "Diamond DA20-C1 Flight Manual Fig 5.5 (DOC# DA202-C1, Rev 27)",
+ "conditions": "800 kg (1764 lb), Flaps CRUISE, 75 KIAS best rate of climb, standard atmosphere.",
+ "best_roc_kias": 75,
+ "max_cruise_alt_ft": 13120,
+ "no_fairings_penalty_pct": 3,
+ "equiv_alt": {
+  "oat_c": [
+   -20,
+   -10,
+   0,
+   10,
+   20,
+   30
+  ],
+  "pa_ft": [
+   0,
+   2000,
+   4000,
+   6000,
+   8000,
+   10000,
+   12000
+  ],
+  "equiv_alt_ft": {
+   "0": [
+    -1600,
+    null,
+    -380,
+    -120,
+    120,
+    300
+   ],
+   "2000": [
+    null,
+    1000,
+    1500,
+    2000,
+    2400,
+    2800
+   ],
+   "4000": [
+    2800,
+    3200,
+    3700,
+    4200,
+    4450,
+    5000
+   ],
+   "6000": [
+    5000,
+    null,
+    5900,
+    6300,
+    6400,
+    7200
+   ],
+   "8000": [
+    7200,
+    null,
+    8050,
+    8450,
+    8800,
+    9600
+   ],
+   "10000": [
+    9300,
+    null,
+    10200,
+    10600,
+    11000,
+    11400
+   ],
+   "12000": [
+    11500,
+    null,
+    12400,
+    12800,
+    13200,
+    13800
+   ]
+  }
+ },
+ "roc_line": {
+  "comment": "line: ROC=0 at equivAlt 17300; ROC=500 at equivAlt 8000 (gives 1038 at -2000ft, confirmed)",
+  "equivalt_ft": [
+   17300,
+   8000
+  ],
+  "roc_fpm": [
+   0,
+   500
+  ]
+ },
+ "disclaimer": "Model-derived planning estimate. POH is authoritative \u2014 verify before flight. Without wheel fairings, climb reduced ~3%."
+}
