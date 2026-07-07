@@ -193,7 +193,7 @@
   <div class="card note">
     <strong style="color:var(--tx);">Model — Diamond DA20-C1 (Continental IO-240-B)</strong><br>
     Max usable fuel 76 L. Climb: 75 KIAS, ROC from Fig 5.5 (equivalent-altitude nomogram), fuel at full power (2,800 RPM) from Table 3.
-    Cruise: TAS &amp; fuel flow from POH Table 3 at the chosen %BHP (pressure-alt &amp; temperature interpolated). Descent: power-off glide (11:1, 73 KIAS, 0 L).
+    Cruise: TAS &amp; fuel flow from POH Table 3 at the chosen %BHP (pressure-alt &amp; temperature interpolated). Descent: 500 ft/min at 2000 RPM (TAS &amp; fuel extrapolated from Table 3 below its tabulated RPM range).
     Fuel converted from US GPH to litres (× 3.785). Planning estimate — verify against the Flight Manual before flight.
   </div>
 </div></div>
@@ -205,8 +205,8 @@ const GPH2LPH=3.78541;          // US gallons/hr → litres/hr
 const AVGAS_KG_PER_L=0.72;      // AVGAS density
 const MTOW=800;                 // kg
 const FUEL_CAP=76;              // L usable
-const GLIDE_RATIO=11;
-const GLIDE_KIAS=73;
+const DESCENT_FPM=500;          // descent rate, ft/min
+const DESCENT_RPM=2000;         // descent power setting
 const CLIMB_KIAS=75;
 const TAXI_L=1.5;               // fixed start/taxi allowance
 
@@ -270,6 +270,22 @@ function climbGph(pa,oat){
   const f=a0===a1?0:(pa-a0)/(a1-a0);
   return climbGphAlt(a0,oat)+(climbGphAlt(a1,oat)-climbGphAlt(a0,oat))*f;
 }
+// ── Table-3 TAS & GPH at a fixed RPM (for the 2000-RPM descent; RPM is below
+//    Table 3's tabulated range so it extrapolates — floored to sane values) ──
+function perfAtRpmAlt(alt,rpm,oat){
+  const d=CR.data[String(alt)],dev=Math.max(-20,Math.min(10,oat-stdT(alt)));
+  const rr=d.rpm.slice().reverse();                                   // ascending RPM
+  const ktas=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.ktas[ri],dev)).reverse();
+  const gph=d.rpm.map((_,ri)=>lin(CR.temp_dev_c,d.gph[ri],dev)).reverse();
+  return {ktas:lin(rr,ktas,rpm), gph:lin(rr,gph,rpm)};
+}
+function perfAtRpm(pa,rpm,oat){
+  const A=CR.alt_ft; let a0=A[0],a1=A[A.length-1];
+  for(let i=0;i<A.length-1;i++){if(pa>=A[i]&&pa<=A[i+1]){a0=A[i];a1=A[i+1];break;}}
+  if(pa<A[0]){a0=A[0];a1=A[1];} if(pa>A[A.length-1]){a0=A[A.length-2];a1=A[A.length-1];}
+  const v0=perfAtRpmAlt(a0,rpm,oat),v1=perfAtRpmAlt(a1,rpm,oat),f=a0===a1?0:(pa-a0)/(a1-a0),bl=(x,y)=>x+(y-x)*f;
+  return {ktas:Math.max(70,bl(v0.ktas,v1.ktas)), gph:Math.max(2,bl(v0.gph,v1.gph))};
+}
 
 // ── climb model (equivalent-altitude nomogram → ROC line) ──
 function curveAt(pa,oat){
@@ -305,11 +321,13 @@ function calcClimb(from,to,oat,adjPct){
   }
   return{min:tMin,fuelL:tFuel,nm:tNm,delta,bands};
 }
-function calcDescent(from,to){
+function calcDescent(from,to,oat){
   if(from<=to)return{min:0,fuelL:0,nm:0,delta:0};
-  const d=from-to,nm=(d*GLIDE_RATIO)/NM_FT,mid=(from+to)/2;
-  const tas=GLIDE_KIAS*(1+0.015*mid/1000),mn=(nm/tas)*60;
-  return{min:mn,fuelL:0,nm,delta:d};
+  const d=from-to,mid=(from+to)/2;
+  const mn=d/DESCENT_FPM;                          // 500 ft/min descent
+  const p=perfAtRpm(mid,DESCENT_RPM,oat);          // Table 3 at 2000 RPM (extrapolated)
+  const nm=p.ktas*(mn/60), lph=p.gph*GPH2LPH, fuelL=(mn/60)*lph;
+  return{min:mn,fuelL,nm,delta:d,ktas:p.ktas,lph};
 }
 function calcCruise(dist,cruiseAlt,pct,oat){
   if(dist<=0)return{min:0,fuelL:0,ktas:0,gph:0,lph:0,maxBhp:0};
@@ -485,7 +503,7 @@ function update(){
   document.getElementById('perf-tags').innerHTML=
     `<span class="perf-tag">Cruise ${cruisePct}% · ${bp.ktas.toFixed(0)} kt · ${(bp.gph*GPH2LPH).toFixed(1)} L/hr</span>`+
     `<span class="perf-tag">Climb ${CLIMB_KIAS} KIAS</span>`+
-    `<span class="perf-tag">Glide ${GLIDE_RATIO}:1</span>`+
+    `<span class="perf-tag">Descent 500 fpm · 2000 RPM</span>`+
     (perfAdj>0?`<span class="perf-tag" style="background:#EAF3DE;color:#27500A;">ROC +${perfAdj}%</span>`:'');
 
   // Chain notes for legs
@@ -505,7 +523,7 @@ function update(){
   const buildLeg=(targetAlt,dist)=>{
     const isClimb=targetAlt>prevAlt;
     const cruiseAlt=Math.max(prevAlt,targetAlt);
-    const trans=isClimb?calcClimb(prevAlt,targetAlt,oat,perfAdj):calcDescent(prevAlt,targetAlt);
+    const trans=isClimb?calcClimb(prevAlt,targetAlt,oat,perfAdj):calcDescent(prevAlt,targetAlt,oat);
     const cruDist=Math.max(0,dist-trans.nm);
     const cru=calcCruise(cruDist,cruiseAlt,cruisePct,oat);
     return {trans,cru,cruDist,cruiseAlt,fuelL:trans.fuelL+cru.fuelL,min:trans.min+cru.min,isClimb,wpAlt:targetAlt,prevAlt,dist};
@@ -645,8 +663,8 @@ function update(){
       r.trans.bands.forEach(b=>{det+=`<div class="det-line" style="padding-left:28px;font-size:10px;">${b.from.toLocaleString()}→${b.to.toLocaleString()} ft: ROC=${b.roc} ft/min · ${n1(b.min)} min · ${b.lph.toFixed(1)} L/hr = ${n1(b.fuelL)} L</div>`;});
       det+=`<div class="det-line" style="padding-left:28px;">Total climb: ${n1(r.trans.min)} min · ${n1(r.trans.nm)} nm · <span class="det-res">${n1(r.trans.fuelL)} L</span></div>`;
     }else{
-      det+=`<div class="det-line">${step}) Descent (glide ${GLIDE_RATIO}:1, ${GLIDE_KIAS} KIAS) from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft) = <span class="det-res">0 L</span></div>`;
-      det+=`<div class="det-line" style="padding-left:28px;">Glide distance = ${n1(r.trans.nm)} nm · ${n1(r.trans.min)} min</div>`;
+      det+=`<div class="det-line">${step}) Descent (500 ft/min, 2000 RPM ${r.trans.lph?('· '+n1(r.trans.lph)+' L/hr'):''}) from ${r.prevAlt.toLocaleString()} to ${r.wpAlt.toLocaleString()} ft (${r.trans.delta.toLocaleString()} ft) = <span class="det-res">${n1(r.trans.fuelL)} L</span></div>`;
+      det+=`<div class="det-line" style="padding-left:28px;">Descent distance = ${n1(r.trans.nm)} nm · ${n1(r.trans.min)} min</div>`;
     }
     step=String.fromCharCode(step.charCodeAt(0)+1);
     det+=`<div class="det-line">${step}) Cruise at ${cruisePct}% (${Math.round(r.cru.ktas||perfAtBhp(r.cruiseAlt,cruisePct,oat).ktas)} kt, ${(r.cru.lph||0).toFixed(1)} L/hr) for ${n1(r.cru.min)} min (${n1(r.cruDist)} nm)</div>`;

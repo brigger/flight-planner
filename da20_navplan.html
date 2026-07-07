@@ -677,6 +677,7 @@ function refreshTotals(){
   const tds=tr.querySelectorAll('td');
   tds[1].textContent=totalDist>0?totalDist.toFixed(0):'';
   tds[3].innerHTML=(totalMin>0?fmtTime(totalMin)+'<span class="tot-extra">+10</span>':'');
+  refreshEndurance();   // trip time follows the total EET
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -771,7 +772,23 @@ function computeEndurance(){
   E.actualQ.value=actualQ>0?fmtNum(actualQ,2):'';
 }
 
+// Auto-fill the fuel calc: FF 26 L/h + Alternate 0:15 + Extra 0:30 (defaults, editable),
+// and keep Trip time synced to the NAV Plan's total EET.
+function endurancePull(){
+  let changed=false;
+  if(!state.end.ff){ state.end.ff='26'; E.ffInp.value='26'; changed=true; }
+  if(!state.end.altT){ state.end.altT='0:15'; E.altT.value='0:15'; changed=true; }
+  if(!state.end.extraT){ state.end.extraT='0:30'; E.extraT.value='0:30'; changed=true; }
+  const tripMin=state.route.reduce((s,r)=>s+(parseTime(r.eet)||0),0);   // total EET from waypoint table
+  if(tripMin>0){
+    const ts=fmtTime(tripMin);
+    if(state.end.tripT!==ts){ state.end.tripT=ts; E.tripT.value=ts; changed=true; }
+  }
+  if(changed) saveState();
+}
+
 function refreshEndurance(){
+  endurancePull();
   applyModeUI();
   computeEndurance();
 }
