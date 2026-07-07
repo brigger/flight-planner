@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diamond DA20-C1 — Takeoff Distance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --bg-page: #f0ede8;
+  --bg-card: #ffffff;
+  --bg-sec: #f5f4f1;
+  --bd: #e2ddd6;
+  --bd2: #ccc8c0;
+  --tx: #1a1a1a;
+  --tx2: #6b6660;
+  --tx3: #9e9890;
+  --rad-lg: 14px;
+  --rad-md: 8px;
+  --blue: #185FA5;
+  --blue-bg: #E6F1FB;
+  --purple: #534AB7;
+  --green: #3B6D11;
+  --amber: #EF9F27;
+}
+*,*::before,*::after{box-sizing:border-box;}
+body{margin:0;background:var(--bg-page);font-family:var(--font);color:var(--tx);padding:0 0 48px;}
+.page-wrap{max-width:720px;margin:0 auto;padding:0 16px;}
+
+/* ── Nav (shell; plan_sync.js fills it) ── */
+.nav{background:var(--bg-card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(255,255,255,0.92);}
+.nav-inner{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;}
+
+.wrap{padding:16px 0;}
+.card{background:var(--bg-card);border:0.5px solid var(--bd);border-radius:var(--rad-lg);padding:1rem 1.25rem;margin-bottom:14px;}
+h1{font-size:19px;font-weight:700;margin:0 0 2px;letter-spacing:-0.02em;}
+.sub{font-size:12px;color:var(--tx2);margin:0 0 14px;}
+h3{font-size:15px;font-weight:700;margin:0 0 14px;color:var(--tx);letter-spacing:-0.02em;}
+h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 8px;text-transform:uppercase;letter-spacing:0.06em;}
+
+/* ── Estimate banner ── */
+.estimate-banner{background:#FFF7E6;border:1px solid #EDD79A;border-radius:var(--rad-md);padding:11px 14px;font-size:12px;color:#7A5B12;line-height:1.5;margin:16px 0 4px;display:flex;gap:10px;align-items:flex-start;}
+.estimate-banner svg{flex-shrink:0;margin-top:1px;color:#C98A16;}
+.estimate-banner strong{color:#5c440d;}
+
+/* ── Slider rows ── */
+.sr{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.sr label{font-size:12.5px;color:var(--tx2);min-width:150px;font-weight:500;}
+.sr input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:#ddd;outline:none;}
+.sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,0.15);cursor:pointer;}
+.sr input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer;}
+.sv{font-size:13px;font-weight:600;color:var(--tx);min-width:78px;text-align:right;}
+.sv small{font-size:10px;color:var(--tx2);font-weight:500;}
+
+/* ── Result ── */
+.result-hero{background:linear-gradient(135deg,#185FA5,#1b4e82);border-radius:var(--rad-lg);padding:20px 22px;color:#fff;margin-bottom:12px;}
+.result-hero .rh-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;opacity:0.85;margin:0 0 6px;}
+.result-hero .rh-val{font-size:40px;font-weight:700;letter-spacing:-0.03em;line-height:1;}
+.result-hero .rh-val small{font-size:16px;font-weight:600;opacity:0.85;}
+.result-hero .rh-ft{font-size:13px;opacity:0.85;margin-top:4px;font-weight:500;}
+.result-hero .rh-warn{font-size:11px;opacity:0.9;margin-top:10px;background:rgba(255,255,255,0.14);border-radius:6px;padding:6px 9px;display:none;}
+.result-hero.oob .rh-warn{display:block;}
+
+.breakdown{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+.bd-item{background:var(--bg-sec);border-radius:var(--rad-md);padding:9px 11px;}
+.bd-lbl{font-size:10px;color:var(--tx2);margin:0 0 2px;font-weight:500;}
+.bd-val{font-size:15px;font-weight:700;color:var(--tx);letter-spacing:-0.01em;}
+.bd-val small{font-size:10px;color:var(--tx2);font-weight:500;}
+
+.note{font-size:11px;color:var(--tx2);line-height:1.6;}
+.note strong{color:var(--tx);}
+.cond{font-size:11px;color:var(--tx2);line-height:1.6;}
+hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
+@media(max-width:600px){.sr label{min-width:120px;}.result-hero .rh-val{font-size:34px;}}
+</style>
+</head>
+<body>
+
+<nav class="nav"><div class="nav-inner"></div></nav>
+
+<div class="page-wrap"><div class="wrap">
+
+  <h1>Takeoff &amp; Landing</h1>
+  <p class="sub">Diamond DA20-C1 &mdash; takeoff distance to clear an obstacle (POH Fig 5.4)</p>
+
+  <div class="estimate-banner">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <div><strong>Planning estimate.</strong> These figures are digitised from the POH takeoff chart and interpolated &mdash; they are <strong>not verbatim POH values</strong>. The Flight Manual (Fig 5.4) is authoritative. <strong>Verify against the POH before flight.</strong></div>
+  </div>
+
+  <div class="card">
+    <h3>Conditions</h3>
+    <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="i-oat" min="-20" max="45" step="1" value="15"><span class="sv" id="v-oat">+15 °C</span></div>
+    <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="6000" step="100" value="0"><span class="sv" id="v-pa">0 ft</span></div>
+    <div class="sr"><label>Gross weight</label><input type="range" id="i-w" min="600" max="800" step="5" value="800"><span class="sv" id="v-w">800 kg</span></div>
+    <div class="sr"><label>Headwind</label><input type="range" id="i-hw" min="-5" max="20" step="1" value="0"><span class="sv" id="v-hw">0 kt</span></div>
+    <div class="sr"><label>Obstacle height</label><input type="range" id="i-oh" min="0" max="15" step="0.5" value="5"><span class="sv" id="v-oh">5.0 m</span></div>
+  </div>
+
+  <div class="result-hero" id="hero">
+    <p class="rh-lbl" id="rh-lbl">Takeoff distance — to clear 5 m obstacle</p>
+    <div class="rh-val"><span id="rh-m">—</span> <small>m</small></div>
+    <div class="rh-ft" id="rh-ft">— ft</div>
+    <div class="rh-warn" id="rh-warn"></div>
+  </div>
+
+  <div class="card">
+    <h4>How it breaks down</h4>
+    <div class="breakdown">
+      <div class="bd-item"><div class="bd-lbl">Base (OAT × alt, 800 kg, 0 kt)</div><div class="bd-val" id="bd-base">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">× Weight factor</div><div class="bd-val" id="bd-w">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">× Headwind factor</div><div class="bd-val" id="bd-hw">—</div></div>
+      <div class="bd-item"><div class="bd-lbl">Ground run (0 m obstacle)</div><div class="bd-val" id="bd-ground">—</div></div>
+    </div>
+    <hr>
+    <p class="note"><strong>Conditions modelled:</strong> max takeoff power, 52 KIAS liftoff, level paved runway, T/O flap. Poor maintenance, unfavourable conditions (rain, crosswind, high temp) can increase distance considerably. Model calibrated to Fig 5.4 (Rev 27/28); reproduces the POH worked example within ~6&nbsp;% on the conservative side.</p>
+  </div>
+
+</div></div>
+
+<script>
+(function(){
+  "use strict";
+  // ── generic piecewise-linear interpolation (extrapolates linearly at ends) ──
+  function lin(xs,ys,x){
+    if(x<=xs[0]){ const s=(ys[1]-ys[0])/(xs[1]-xs[0]); return ys[0]+s*(x-xs[0]); }
+    if(x>=xs[xs.length-1]){ const n=xs.length; const s=(ys[n-1]-ys[n-2])/(xs[n-1]-xs[n-2]); return ys[n-1]+s*(x-xs[n-1]); }
+    for(let i=0;i<xs.length-1;i++){ if(x>=xs[i]&&x<=xs[i+1]){ const t=(x-xs[i])/(xs[i+1]-xs[i]); return ys[i]+t*(ys[i+1]-ys[i]); } }
+    return ys[ys.length-1];
+  }
+
+  let M=null;                       // model built from the JSON
+  function buildModel(j){
+    // base surface: rows keyed by pressure altitude
+    const rows=Object.keys(j.base_surface_800kg).map(Number).sort((a,b)=>a-b);
+    const base_rows={};
+    rows.forEach(pa=>{ const r=j.base_surface_800kg[String(pa)]; base_rows[pa]={oat:r.oat_c,d:r.dist_m}; });
+    // weight + headwind factor tables
+    const wk=Object.keys(j.weight_factor).map(Number).sort((a,b)=>a-b);
+    const wf=wk.map(k=>j.weight_factor[String(k)]);
+    const hk=Object.keys(j.headwind_factor_0kt).map(Number).sort((a,b)=>a-b);
+    const hf=hk.map(k=>j.headwind_factor_0kt[String(k)]);
+    // obstacle curves: label -> {heights[], vals[]}
+    const oc={};
+    const olabels=Object.keys(j.obstacle_curves).map(Number).sort((a,b)=>a-b);
+    olabels.forEach(l=>{
+      const c=j.obstacle_curves[String(l)];
+      const hs=Object.keys(c).map(Number).sort((a,b)=>a-b);
+      oc[l]={hs:hs, vs:hs.map(h=>c[h])};
+    });
+    return {rows,base_rows,wk,wf,hk,hf,oc,olabels};
+  }
+  function base(oat,pa){
+    const rows=M.rows; let p0=rows[0],p1=rows[rows.length-1];
+    for(let i=0;i<rows.length-1;i++){ if(pa>=rows[i]&&pa<=rows[i+1]){ p0=rows[i]; p1=rows[i+1]; break; } }
+    if(pa<rows[0]){ p0=rows[0]; p1=rows[1]; }
+    if(pa>rows[rows.length-1]){ p0=rows[rows.length-2]; p1=rows[rows.length-1]; }
+    const r0=M.base_rows[p0], r1=M.base_rows[p1];
+    const d0=lin(r0.oat,r0.d,oat), d1=lin(r1.oat,r1.d,oat);
+    return p0===p1 ? d0 : d0+(d1-d0)*(pa-p0)/(p1-p0);
+  }
+  const fW=w=>lin(M.wk,M.wf,w);
+  const fH=h=>lin(M.hk,M.hf,h);
+  function obsCurveAt(label,h){ const c=M.oc[label]; return lin(c.hs,c.vs,h); }
+  function obstacle(D0,h){
+    if(h<=0) return D0;
+    const L=M.olabels; let a=L[0],b=L[L.length-1];
+    for(let i=0;i<L.length-1;i++){ if(D0>=L[i]&&D0<=L[i+1]){ a=L[i]; b=L[i+1]; break; } }
+    if(D0<L[0]){ a=L[0]; b=L[1]; }
+    if(D0>L[L.length-1]){ a=L[L.length-2]; b=L[L.length-1]; }
+    const va=obsCurveAt(a,h), vb=obsCurveAt(b,h);
+    return a===b ? va : va+(vb-va)*(D0-a)/(b-a);
+  }
+
+  const $=id=>document.getElementById(id);
+  const M2FT=3.28084;
+  function readInputs(){
+    return { oat:+$('i-oat').value, pa:+$('i-pa').value, w:+$('i-w').value, hw:+$('i-hw').value, oh:+$('i-oh').value };
+  }
+  function fmtSigned(n,unit){ return (n>=0?'+':'')+n+' '+unit; }
+  function update(){
+    const s=readInputs();
+    $('v-oat').textContent=fmtSigned(s.oat,'°C');
+    $('v-pa').textContent=s.pa.toLocaleString()+' ft';
+    $('v-w').textContent=s.w+' kg';
+    $('v-hw').textContent=(s.hw>=0? s.hw+' kt' : Math.abs(s.hw)+' kt tail');
+    $('v-oh').textContent=s.oh.toFixed(1)+' m';
+    if(!M) return;
+    const b=base(s.oat,s.pa);
+    const kw=fW(s.w), kh=fH(s.hw)/fH(0);
+    const ground=b*kw*kh;                 // pre-obstacle "Total Take-off Distance"
+    const dist=obstacle(ground,s.oh);     // to clear the obstacle
+    $('rh-lbl').textContent='Takeoff distance — '+(s.oh>0?('to clear '+s.oh.toFixed(1)+' m obstacle'):'ground run (no obstacle)');
+    $('rh-m').textContent=Math.round(dist).toLocaleString();
+    $('rh-ft').textContent=Math.round(dist*M2FT).toLocaleString()+' ft';
+    $('bd-base').innerHTML=Math.round(b)+' <small>m</small>';
+    $('bd-w').textContent='× '+kw.toFixed(3);
+    $('bd-hw').textContent='× '+kh.toFixed(3);
+    $('bd-ground').innerHTML=Math.round(ground)+' <small>m</small>';
+    // out-of-range advisory
+    const oob=[];
+    if(s.pa>6000) oob.push('pressure altitude above 6000 ft is extrapolated');
+    if(s.oat>40) oob.push('OAT above 40 °C is extrapolated');
+    if(s.oh>15) oob.push('obstacle above 15 m is extrapolated');
+    const hero=$('hero');
+    if(oob.length){ hero.classList.add('oob'); $('rh-warn').textContent='⚠ '+oob.join('; ')+' — treat with extra caution.'; }
+    else hero.classList.remove('oob');
+    if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
+  }
+
+  ['i-oat','i-pa','i-w','i-hw','i-oh'].forEach(id=>$(id).addEventListener('input',update));
+
+  fetch('da20_c1_takeoff.json').then(r=>r.json()).then(j=>{ M=buildModel(j); update(); })
+    .catch(e=>{ $('rh-m').textContent='!'; $('rh-lbl').textContent='Could not load da20_c1_takeoff.json'; console.error(e); });
+  update();
+})();
+</script>
+<script src="plan_sync.js?v=18" defer></script>
+</body>
+</html>

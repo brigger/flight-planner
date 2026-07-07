@@ -46,18 +46,28 @@ window.velisWp = (function(){
   const STIME_KEY      = 'velis_bundle_stime';
   const VIEW_KEY       = 'velis_navplan_view';
   const AUTO_SYNC_KEY  = 'velis_auto_sync';            // 'ask' | 'always' | 'never' (per device)
-  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY]);
+  const AC_KEY         = 'velis_aircraft';             // selected aircraft id (UI pref)
+  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY]);
 
-  /* ─── Nav definition ─── */
-  // Single source of truth for the site menu. Add / rename / re-order tabs here.
-  // Admin-only tabs (is_admin flag on currentUser) have admin:true.
-  const NAV_TABS = [
-    { href: 'velis_navplan.html',     label: 'NAV Plan'           },
-    { href: 'index.html',             label: 'Route Planner'      },
-    { href: 'velis_takeoff.html',     label: 'Takeoff & Landing'  },
-    { href: 'velis_performance.html', label: 'Performance'        },
-    { href: 'velis_about.html',       label: 'About'              },
-    { href: 'velis_admin.html',       label: 'Dashboard', admin:true },
+  /* ─── Aircraft + Nav definition ─── */
+  // Single source of truth for the aircraft selector and per-aircraft menus.
+  // Each aircraft owns a set of tabs keyed by `type` so switching aircraft can
+  // stay on the same tab type when the target has it. Admin tabs have admin:true.
+  const AIRCRAFT = [
+    { id:'velis', name:'Velis Electro', tabs:[
+      { type:'navplan', href:'velis_navplan.html',     label:'NAV Plan'          },
+      { type:'route',   href:'index.html',             label:'Route Planner'     },
+      { type:'takeoff', href:'velis_takeoff.html',     label:'Takeoff & Landing' },
+      { type:'perf',    href:'velis_performance.html', label:'Performance'       },
+    ]},
+    { id:'da20', name:'Diamond DA20-C1', tabs:[
+      { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
+    ]},
+  ];
+  // Shared across all aircraft (same page regardless of selection).
+  const SHARED_TABS = [
+    { type:'about',     href:'velis_about.html', label:'About'                 },
+    { type:'dashboard', href:'velis_admin.html', label:'Dashboard', admin:true },
   ];
 
   /* ─── CSS ─── */
@@ -66,6 +76,18 @@ window.velisWp = (function(){
 .nav-inner{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;}
 .nav-brand{padding:11px 18px 11px 0;font-size:13px;font-weight:700;color:var(--tx,#1a1a1a);border-right:1px solid var(--bd,#e2ddd6);margin-right:4px;letter-spacing:-0.02em;display:flex;align-items:center;gap:6px;}
 .nav-brand svg{opacity:0.5;}
+.nav-ac{position:relative;}
+.nav-ac-btn{display:flex;align-items:center;gap:5px;background:none;border:none;font:inherit;font-size:13px;font-weight:700;color:var(--tx,#1a1a1a);letter-spacing:-0.02em;cursor:pointer;padding:0;}
+.nav-ac-btn:hover{color:var(--blue,#185FA5);}
+.nav-ac-chev{width:10px;height:10px;opacity:0.6;flex-shrink:0;transition:transform .15s;}
+.nav-ac-menu.open .nav-ac-chev{transform:rotate(180deg);}
+.nav-ac-menu{position:absolute;top:calc(100% + 2px);left:-6px;background:var(--bg-card,#fff);border:1px solid var(--bd,#e2ddd6);border-radius:var(--rad-md,8px);box-shadow:0 10px 30px rgba(0,0,0,0.16),0 2px 6px rgba(0,0,0,0.08);min-width:190px;padding:4px;z-index:60;display:none;}
+.nav-ac-menu.open{display:block;}
+.nav-ac-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:10px 12px;min-height:40px;border:none;background:none;font:inherit;font-size:12.5px;font-weight:500;color:var(--tx,#1a1a1a);border-radius:5px;cursor:pointer;white-space:nowrap;}
+.nav-ac-menu button:hover{background:var(--bg-sec,#f5f4f1);}
+.nav-ac-menu button.sel{color:var(--blue,#185FA5);font-weight:700;}
+.nav-ac-menu button .tick{margin-left:auto;opacity:0;color:var(--blue,#185FA5);}
+.nav-ac-menu button.sel .tick{opacity:1;}
 .nav-tab{padding:11px 18px;font-size:12.5px;font-weight:500;color:var(--tx2,#6b6660);text-decoration:none;border-bottom:2px solid transparent;transition:all 0.15s;white-space:nowrap;}
 .nav-tab:hover{color:var(--tx,#1a1a1a);}
 .nav-tab.active{color:var(--blue,#185FA5);border-bottom-color:var(--blue,#185FA5);font-weight:600;}
@@ -385,20 +407,73 @@ window.velisWp = (function(){
     const last=path.substring(path.lastIndexOf('/')+1);
     return last||'index.html';
   }
+  // Which aircraft owns the current page? Null for a shared page (About/Dashboard).
+  function pageAircraft(page){
+    for(const ac of AIRCRAFT){ if(ac.tabs.some(t=>t.href===page)) return ac; }
+    return null;
+  }
+  // The active aircraft: taken from the page if it belongs to one (and remembered),
+  // otherwise from the last-selected id in localStorage (shared pages).
+  function activeAircraft(){
+    const ac=pageAircraft(currentPage());
+    if(ac){ try{localStorage.setItem(AC_KEY,ac.id);}catch(e){} return ac; }
+    let id='velis';
+    try{ id=localStorage.getItem(AC_KEY)||'velis'; }catch(e){}
+    return AIRCRAFT.find(a=>a.id===id)||AIRCRAFT[0];
+  }
+  // The tab type of the current page (across every aircraft + shared tabs).
+  function currentTabType(page){
+    for(const ac of AIRCRAFT) for(const t of ac.tabs) if(t.href===page) return t.type;
+    for(const t of SHARED_TABS) if(t.href===page) return t.type;
+    return null;
+  }
+  function switchAircraft(id){
+    const target=AIRCRAFT.find(a=>a.id===id);
+    if(!target) return;
+    try{localStorage.setItem(AC_KEY,target.id);}catch(e){}
+    const type=currentTabType(currentPage());
+    // Land on the same tab type if the target has it; else its first tab.
+    const dest=target.tabs.find(t=>t.type===type)||target.tabs[0];
+    if(dest && dest.href!==currentPage()) location.href=dest.href;
+    else updateNav();
+  }
+  const PLANE_SVG='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
+  const CHEV_SVG='<svg class="nav-ac-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>';
+  const TICK_SVG='<svg class="tick" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>';
   function updateNav(){
     const navInner=document.querySelector('.nav .nav-inner');
     if(!navInner) return;
     const isAdmin=!!(currentUser&&currentUser.is_admin);
     const page=currentPage();
+    const ac=activeAircraft();
     // Remove any previously-rendered brand + tabs; leave the status span (if present) intact.
     navInner.querySelectorAll('[data-nav="1"]').forEach(el=>el.remove());
     const frag=document.createDocumentFragment();
-    const brand=document.createElement('span');
-    brand.className='nav-brand';
+
+    // Aircraft-selector brand (dropdown).
+    const brand=document.createElement('div');
+    brand.className='nav-brand nav-ac';
     brand.dataset.nav='1';
-    brand.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Velis Electro';
+    brand.innerHTML=PLANE_SVG
+      +'<button type="button" class="nav-ac-btn" id="nav-ac-btn" aria-haspopup="true" aria-expanded="false">'
+      +  '<span class="nav-ac-name"></span>'+CHEV_SVG
+      +'</button>'
+      +'<div class="nav-ac-menu" id="nav-ac-menu" role="menu"></div>';
+    brand.querySelector('.nav-ac-name').textContent=ac.name;
+    const menu=brand.querySelector('#nav-ac-menu');
+    AIRCRAFT.forEach(a=>{
+      const b=document.createElement('button');
+      b.type='button'; b.dataset.acId=a.id;
+      b.className=(a.id===ac.id?'sel':'');
+      b.innerHTML='<span></span>'+TICK_SVG;
+      b.querySelector('span').textContent=a.name;
+      menu.appendChild(b);
+    });
     frag.appendChild(brand);
-    NAV_TABS.filter(t=>!t.admin||isAdmin).forEach(t=>{
+
+    // Tabs: the active aircraft's own tabs, then the shared tabs.
+    const tabs=ac.tabs.concat(SHARED_TABS.filter(t=>!t.admin||isAdmin));
+    tabs.forEach(t=>{
       const a=document.createElement('a');
       a.href=t.href;
       a.className='nav-tab'+(t.href===page?' active':'');
@@ -409,6 +484,24 @@ window.velisWp = (function(){
     });
     // Insert at the start so status (if already there) stays on the right.
     navInner.insertBefore(frag,navInner.firstChild);
+
+    // Wire the dropdown.
+    const btn=brand.querySelector('#nav-ac-btn');
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const open=menu.classList.toggle('open');
+      btn.setAttribute('aria-expanded',open?'true':'false');
+    });
+    menu.querySelectorAll('button[data-ac-id]').forEach(b=>{
+      b.addEventListener('click',e=>{ e.stopPropagation(); menu.classList.remove('open'); switchAircraft(b.dataset.acId); });
+    });
+    if(!updateNav._docClose){
+      updateNav._docClose=true;
+      document.addEventListener('click',()=>{
+        const m=document.getElementById('nav-ac-menu');
+        if(m) m.classList.remove('open');
+      });
+    }
   }
   function ensureNavShell(){
     // If a page omits <nav class="nav">, create it at the very top of body.
