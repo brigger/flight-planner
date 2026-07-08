@@ -59,13 +59,13 @@
     try{
       const s=JSON.parse(localStorage.getItem('velis_da20_takeoff')||'{}');
       return {
-        pa:+(s.pa!=null?s.pa:0),
+        pa:+(s.pa!=null?s.pa:1525),
         oat:+(s.oat!=null?s.oat:15),
         weight:+(s.weight!=null?s.weight:800),
         hw:+(s.hw!=null?s.hw:0),
         oh:+(s.oh!=null?s.oh:5)
       };
-    }catch(e){return {pa:0,oat:15,weight:800,hw:0,oh:5};}
+    }catch(e){return {pa:1525,oat:15,weight:800,hw:0,oh:5};}
   }
 
   // Takeoff: distance to clear the obstacle (no ground roll).
