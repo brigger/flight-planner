@@ -41,7 +41,11 @@ window.velisWp = (function(){
 
   const API_BASE       = (typeof window!=='undefined'&&typeof window.VELIS_API_BASE==='string') ? window.VELIS_API_BASE : '/velis-planner/api';
   const USER_KEY       = 'velis_user';                 // cached {id,email,first_name,last_name}
-  const NAV_STATE_KEY  = 'velis_navplan_state';
+  // Per-aircraft NAV Plan state key. Velis and DA20 keep separate plans
+  // (velis_navplan_state vs velis_da20_navplan_state), so the key is resolved
+  // from the active aircraft at call time via navStateKey(); this is the
+  // fallback for shared pages with no owning aircraft.
+  const NAV_STATE_KEY_FALLBACK = 'velis_navplan_state';
   const MTIME_KEY      = 'velis_bundle_mtime';
   const STIME_KEY      = 'velis_bundle_stime';
   const VIEW_KEY       = 'velis_navplan_view';
@@ -54,13 +58,13 @@ window.velisWp = (function(){
   // Each aircraft owns a set of tabs keyed by `type` so switching aircraft can
   // stay on the same tab type when the target has it. Admin tabs have admin:true.
   const AIRCRAFT = [
-    { id:'velis', name:'Velis Electro', tabs:[
+    { id:'velis', name:'Velis Electro', navKey:'velis_navplan_state', tabs:[
       { type:'navplan', href:'velis_navplan.html',     label:'NAV Plan'          },
       { type:'route',   href:'index.html',             label:'Route Planner'     },
       { type:'takeoff', href:'velis_takeoff.html',     label:'Takeoff & Landing' },
       { type:'perf',    href:'velis_performance.html', label:'Performance'       },
     ]},
-    { id:'da20', name:'Diamond DA20-C1', tabs:[
+    { id:'da20', name:'Diamond DA20-C1', navKey:'velis_da20_navplan_state', tabs:[
       { type:'navplan', href:'da20_navplan.html',      label:'NAV Plan'          },
       { type:'route',   href:'da20_index.html',        label:'Route Planner'     },
       { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
@@ -367,7 +371,7 @@ window.velisWp = (function(){
 
   function currentMeta(){
     try{
-      const raw=localStorage.getItem(NAV_STATE_KEY);
+      const raw=localStorage.getItem(navStateKey());
       if(!raw) return {id:null,name:''};
       const s=JSON.parse(raw);
       return (s&&s.meta)||{id:null,name:''};
@@ -424,6 +428,10 @@ window.velisWp = (function(){
     try{ id=localStorage.getItem(AC_KEY)||'velis'; }catch(e){}
     return AIRCRAFT.find(a=>a.id===id)||AIRCRAFT[0];
   }
+  // The active aircraft's NAV Plan localStorage key (falls back to Velis for
+  // shared pages). Keeps Save/Load meta, filename suggestion and bundle capture
+  // pointed at the aircraft whose NAV Plan is actually on screen.
+  function navStateKey(){ const ac=activeAircraft(); return (ac&&ac.navKey)||NAV_STATE_KEY_FALLBACK; }
   // The tab type of the current page (across every aircraft + shared tabs).
   function currentTabType(page){
     for(const ac of AIRCRAFT) for(const t of ac.tabs) if(t.href===page) return t.type;
@@ -537,7 +545,7 @@ window.velisWp = (function(){
     document.dispatchEvent(new CustomEvent('velis:before-save'));
     let navplan={};
     try{
-      const raw=localStorage.getItem(NAV_STATE_KEY);
+      const raw=localStorage.getItem(navStateKey());
       if(raw){const {meta:_m,...rest}=JSON.parse(raw);navplan=rest;}
     }catch(e){}
     const ls={};
@@ -639,7 +647,7 @@ window.velisWp = (function(){
 
   function suggestedFromNavplan(){
     try{
-      const raw=localStorage.getItem(NAV_STATE_KEY);
+      const raw=localStorage.getItem(navStateKey());
       if(!raw) return '';
       const s=JSON.parse(raw);
       return (s&&s.hdr&&s.hdr.ident)||'';
@@ -648,10 +656,10 @@ window.velisWp = (function(){
 
   function persistMeta(meta){
     try{
-      const raw=localStorage.getItem(NAV_STATE_KEY);
+      const raw=localStorage.getItem(navStateKey());
       const s=raw?JSON.parse(raw):{};
       s.meta={id:meta.id||null,name:meta.name||'',dirty:false};
-      safeSetItem(NAV_STATE_KEY,JSON.stringify(s));
+      safeSetItem(navStateKey(),JSON.stringify(s));
     }catch(e){}
   }
 

@@ -6,213 +6,7 @@
 <title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<style>
-:root{--font:'DM Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--bg-page:#f0ede8;--bg-card:#fff;--bg-sec:#f5f4f1;--bd:#e2ddd6;--bd2:#ccc8c0;--tx:#1a1a1a;--tx2:#6b6660;--rad-lg:14px;--rad-md:8px;--blue:#185FA5;--green:#3B6D11;}
-*,*::before,*::after{box-sizing:border-box;}
-body{margin:0;background:var(--bg-page);font-family:var(--font);color:var(--tx);padding:0 0 48px;}
-.nav{background:var(--bg-card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;backdrop-filter:blur(12px);background:rgba(255,255,255,0.92);}
-.nav-inner{max-width:1180px;margin:0 auto;padding:0 16px;display:flex;align-items:stretch;}
-.nav-brand{padding:11px 18px 11px 0;font-size:13px;font-weight:700;color:var(--tx);border-right:1px solid var(--bd);margin-right:4px;letter-spacing:-0.02em;display:flex;align-items:center;gap:6px;}
-.nav-brand svg{opacity:0.5;}
-.nav-tab{padding:11px 18px;font-size:12.5px;font-weight:500;color:var(--tx2);text-decoration:none;border-bottom:2px solid transparent;transition:all 0.15s;}
-.nav-tab:hover{color:var(--tx);}
-.nav-tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600;}
-
-.page-wrap{padding:16px 16px 24px;display:flex;flex-direction:column;align-items:center;gap:10px;}
-@media (max-width:700px){
-  /* Sheet is 148.5 mm (≈ 561 px) — wider than any phone viewport.
-     Center-aligning puts its left edge in negative-x that browsers
-     can't scroll into, so the left gutter (freq column, "NAV FLIGHTPLAN"
-     label) gets clipped. Left-align instead; horizontal scroll takes
-     the user right. */
-  .page-wrap{align-items:flex-start;}
-}
-
-/* ═══ TOOLBAR (screen only) ═══ */
-.toolbar{max-width:297mm;width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;background:var(--bg-card);border:0.5px solid var(--bd);border-radius:8px;font-size:12px;}
-.toolbar .grow{flex:1;}
-.toolbar button{font-family:var(--font);font-size:11px;font-weight:600;padding:5px 12px;border:1px solid var(--bd);border-radius:6px;background:var(--bg-sec);color:var(--tx2);cursor:pointer;}
-.toolbar button.primary{border-color:var(--blue);background:var(--blue);color:#fff;}
-.toolbar button:hover{border-color:var(--tx2);}
-.toolbar button.primary:hover{background:#124a82;}
-.toolbar .sep{color:var(--bd2);}
-/* ═══ IMPORT MODAL (Sky Demon paste / screenshot) — reuses plan_sync.js's .plan-modal shell ═══ */
-.import-ta{width:100%;min-height:280px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;line-height:1.45;border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;color:var(--tx);background:#fafaf7;outline:none;resize:vertical;box-sizing:border-box;}
-.import-ta:focus{border-color:var(--blue);}
-.import-seg{margin-bottom:12px;}
-.import-pane[hidden]{display:none;}
-.import-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--bd2);border-radius:8px;padding:22px 14px;background:#fafaf7;text-align:center;cursor:pointer;color:var(--tx2);font-size:12px;transition:border-color 0.15s,background 0.15s;}
-.import-drop:hover{border-color:var(--blue);background:#f5f8fc;}
-.import-drop.has-file{border-style:solid;border-color:var(--blue);color:var(--tx);background:#f5f8fc;}
-.import-drop strong{color:var(--blue);font-weight:600;}
-.import-drop .sub{font-size:11px;color:var(--tx2);}
-.import-status{margin:10px 0 0;font-size:11.5px;color:var(--tx2);min-height:1.4em;line-height:1.4;}
-.import-status.err{color:#B03030;}
-.import-auth{margin:0 0 12px;font-size:11.5px;color:#7A5700;background:#FFF8E7;border:1px solid #F2DDA0;border-radius:6px;padding:8px 12px;line-height:1.4;}
-.import-auth a{color:var(--blue);font-weight:600;text-decoration:none;cursor:pointer;}
-.import-auth a:hover{text-decoration:underline;}
-.seg{display:inline-flex;border:1px solid var(--bd);border-radius:6px;overflow:hidden;background:var(--bg-card);}
-.seg button{border:none;border-radius:0;padding:6px 14px;background:transparent;color:var(--tx2);font-size:11.5px;font-weight:500;border-right:1px solid var(--bd);}
-.seg button:last-child{border-right:none;}
-.seg button.on{background:var(--blue);color:#fff;font-weight:600;}
-.seg button.on:hover{background:#124a82;}
-
-/* ═══ A5 (on-screen single-view) / A4 LANDSCAPE (print) SHEET ═══ */
-.sheet{width:148.5mm;height:210mm;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,0.08),0 1px 3px rgba(0,0,0,0.06);display:grid;grid-template-columns:1fr;position:relative;transition:width 0.18s ease;}
-.sheet.view-nav .fuel-half{display:none;}
-.sheet.view-fuel .nav-half{display:none;}
-.half{padding:8mm 8mm 6mm;display:flex;flex-direction:column;min-width:0;}
-
-/* ═══ INPUT RESET (look like written-in text) ═══ */
-input,textarea,select{font-family:var(--font);color:var(--tx);}
-input{border:none;background:transparent;outline:none;padding:0;margin:0;width:100%;-webkit-appearance:none;appearance:none;border-radius:0;box-shadow:none;}
-textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resize:none;-webkit-appearance:none;appearance:none;box-shadow:none;}
-
-/* ═══ LEFT: NAV FLIGHTPLAN ═══ */
-.np-title{font-size:14pt;font-weight:700;letter-spacing:-0.01em;margin:0 0 4mm;color:var(--tx);}
-
-.hdr{display:grid;gap:2mm 3mm;margin-bottom:3mm;font-size:9pt;}
-.hdr-row{display:grid;grid-template-columns:repeat(12,1fr);align-items:end;gap:3mm;}
-.hdr-row.r1 .fld[data-col="ident"]{grid-column:span 3;}
-.hdr-row.r1 .fld[data-col="type"]{grid-column:span 2;}
-.hdr-row.r1 .fld[data-col="pilot"]{grid-column:span 4;}
-.hdr-row.r1 .fld[data-col="date"]{grid-column:span 3;}
-.hdr-deparr{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:1mm;}
-.hdr-section{display:grid;gap:1.8mm;}
-.hdr-subrow{display:grid;grid-template-columns:repeat(6,1fr);align-items:end;gap:2.5mm;}
-.hdr-subrow.r-ab .fld{grid-column:span 3;}
-.hdr-subrow.r-cd .fld{grid-column:span 2;}
-.fld{display:flex;align-items:baseline;gap:1.5mm;min-width:0;}
-.fld-lbl{font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--tx2);white-space:nowrap;flex-shrink:0;}
-.fld-inp{flex:1;border-bottom:1px solid var(--bd2);min-height:4.5mm;font-size:9pt;padding:0 1mm 0.5mm;}
-
-.wp{width:100%;border-collapse:collapse;font-size:8.5pt;table-layout:fixed;margin-bottom:3mm;}
-.wp th{background:var(--bg-sec);border:0.5px solid var(--bd);padding:1.5mm 1mm;font-size:7pt;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:0.04em;text-align:center;line-height:1.15;}
-.wp td{border:0.5px solid var(--bd);padding:0;height:9mm;vertical-align:top;position:relative;}
-
-.wp .single-inp{width:100%;height:100%;text-align:center;font-size:8pt;padding:0 1mm;color:var(--tx);font-weight:500;}
-.wp td.alt-td{padding:0;}
-.wp .alt-wrap{display:flex;align-items:stretch;height:100%;width:100%;}
-.wp .trend-btn{flex:0 0 3.5mm;border:none;background:transparent;font-family:var(--font);font-size:9pt;line-height:1;color:var(--blue);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-right:0.5px dotted var(--bd2);}
-.wp .trend-btn:hover{background:#eef4fb;}
-.wp .trend-btn.empty{color:var(--bd2);}
-.wp .trend-btn.empty::before{content:"·";font-size:12pt;}
-.wp .alt-inp{flex:1;min-width:0;}
-.wp td.dual{padding:0;}
-.wp td.dual .dual-inp{display:block;width:100%;height:4.25mm;line-height:4.25mm;padding:0 1mm;font-size:8pt;}
-.wp td.dual .dual-inp.u{border-bottom:0.5px dotted var(--bd2);color:var(--tx2);}
-.wp td.dual .dual-inp.l{color:var(--tx);font-weight:500;}
-.wp td.dual .dual-inp.u[data-f="freq"],
-.wp td.dual .dual-inp.u[data-f="freqR"],
-.wp td.dual .dual-inp.u[data-af="freq"],
-.wp td.dual .dual-inp.u[data-af="freqR"],
-.wp td.dual .dual-inp.u[data-totals-rem="u"]{font-size:9pt;font-weight:600;color:var(--tx);}
-
-.wp col.c-freq1{width:14%;}
-.wp col.c-wp{width:18%;}
-.wp col.c-hdg{width:7%;}
-.wp col.c-dist{width:7%;}
-.wp col.c-alt{width:11%;}
-.wp col.c-eet{width:7%;}
-.wp col.c-ato{width:10%;}
-.wp col.c-wind{width:9%;}
-.wp col.c-rem{width:17%;}
-
-.wp tr.dep td,
-.wp tr.dest td{background:#EAF3DE;}
-.wp tr.dep td:first-child,
-.wp tr.dest td:first-child{border-left:2px solid var(--green);}
-
-.wp tr.totals td{background:#f5f4f1;font-weight:600;color:var(--tx);}
-.wp tr.totals td.lbl{text-align:right;vertical-align:middle;padding:0 2mm;font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--tx2);}
-.wp tr.totals td.val{text-align:center;vertical-align:middle;font-size:8.5pt;font-weight:700;color:var(--tx);padding:0 1mm;position:relative;}
-.wp tr.totals .tot-extra{position:absolute;top:0.3mm;right:0.8mm;font-size:5.5pt;color:var(--tx2);font-weight:500;line-height:1;opacity:0.75;font-variant:tabular-nums;}
-.wp tr.totals td.dual.totals-rem{background:#f5f4f1;padding:0;}
-.wp tr.totals td.dual.totals-rem .dual-inp{text-align:left;}
-
-.wp tr.altn td{background:#FFF8E7;}
-.wp tr.altn td:first-child{border-left:2px solid #B78500;}
-.wp tr.altn .wp-badge{font-size:7pt;font-weight:700;color:#7A5700;letter-spacing:0.06em;position:absolute;top:0.5mm;left:1mm;pointer-events:none;}
-
-.wp .del-btn{position:absolute;top:0.5mm;right:0.5mm;width:4mm;height:4mm;border:none;background:transparent;color:#B08888;cursor:pointer;font-size:11pt;line-height:1;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;opacity:0.75;transition:opacity 0.12s,background 0.12s;}
-.wp .eet-extra{position:absolute;top:0.3mm;right:0.8mm;font-size:5.5pt;color:var(--tx2);font-weight:500;line-height:1;pointer-events:none;opacity:0.75;font-variant:tabular-nums;}
-.wp .del-btn:hover{opacity:1;color:#791F1F;background:#FCEBEB;}
-.wp .ins-btn{position:absolute;left:50%;bottom:-2.2mm;transform:translateX(-50%);width:4.5mm;height:4.5mm;border-radius:50%;border:0.5px solid var(--blue);background:#fff;color:var(--blue);font-size:10.5pt;line-height:1;cursor:pointer;opacity:0;z-index:3;transition:opacity 0.12s,background 0.12s,color 0.12s;font-family:var(--font);padding:0;display:flex;align-items:center;justify-content:center;}
-.wp tr:hover .ins-btn{opacity:0.85;}
-.wp .ins-btn:hover{opacity:1;background:var(--blue);color:#fff;}
-
-.add-wp-row td{padding:0;height:auto;border:none;background:#fff;}
-.add-wp{width:100%;padding:1.5mm;text-align:center;font-size:7.5pt;color:var(--blue);background:#fff;border:0.5px dashed var(--blue);font-weight:600;letter-spacing:0.04em;cursor:pointer;opacity:0.6;transition:opacity 0.15s;font-family:var(--font);}
-.add-wp:hover{opacity:1;}
-
-.comments{flex:1;display:flex;flex-direction:column;border:0.5px solid var(--bd);border-radius:2mm;padding:2mm 3mm;min-height:18mm;}
-.comments-lbl{font-size:7pt;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:1mm;}
-.comments textarea{flex:1;font-size:8.5pt;line-height:1.4;}
-
-/* ═══ RIGHT: ENDURANCE CALCULATOR — compact to leave room for TO/LDG pictures ═══ */
-.fuel-wrap{display:flex;flex-direction:column;}
-.fuel{width:100%;border-collapse:collapse;font-size:8pt;table-layout:fixed;}
-.fuel th,.fuel td{border:0.5px solid var(--bd);padding:1.3mm 2mm;vertical-align:middle;}
-.fuel col.c-lbl{width:46%;}
-.fuel col.c-time{width:27%;}
-.fuel col.c-qty{width:27%;}
-
-.fuel .title-row td{padding:2mm 2mm;background:var(--bg-sec);}
-.fuel .title-td{font-size:10pt;font-weight:700;letter-spacing:-0.01em;color:var(--tx);vertical-align:top;}
-.fuel .title-td .mode-wrap{margin-top:1mm;display:flex;align-items:center;gap:2mm;}
-.fuel .title-td .mode-sel{font-family:var(--font);font-size:8pt;font-weight:500;padding:0.5mm 5mm 0.5mm 2mm;border:0.5px solid var(--bd2);border-radius:2mm;background:#fff;color:var(--tx);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='none' stroke='%236b6660' stroke-width='1.4' d='M1 1l4 4 4-4'/></svg>");background-repeat:no-repeat;background-position:right 2mm center;}
-.fuel .ff-cell{font-size:7.5pt;}
-.fuel .ff-cell .ff-lbl{font-size:6.5pt;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:0.05em;display:block;margin-bottom:0.6mm;}
-.fuel .ff-cell .ff-inp{border-bottom:1px solid var(--bd2);min-height:4mm;text-align:center;font-size:8.5pt;font-weight:500;padding:0 1mm 0.4mm;}
-.fuel .ff-cell .unit-hint{font-size:6pt;font-weight:400;color:var(--tx2);text-transform:none;letter-spacing:0;margin-left:1mm;}
-
-.fuel thead.col-head td{background:var(--bg-sec);text-align:center;font-size:7pt;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:0.05em;padding:1mm;}
-.fuel thead.col-head td .sub{font-size:6.5pt;font-weight:400;text-transform:none;letter-spacing:0;color:var(--tx2);opacity:0.85;}
-
-.fuel .row-lbl{font-size:8pt;font-weight:600;color:var(--tx);padding:1.5mm 2mm;}
-.fuel .cell{height:7mm;padding:0.6mm 0.8mm !important;}
-.fuel .cell-inp{width:100%;min-height:4mm;text-align:center;font-size:8.5pt;font-weight:500;padding:0.5mm;border-bottom:1px solid var(--bd2);}
-.fuel .cell-inp.derived{color:var(--tx2);background:repeating-linear-gradient(-45deg,#fafaf7,#fafaf7 2px,#f3f1ec 2px,#f3f1ec 4px);border-radius:1mm;border-bottom:1px solid var(--bd);}
-
-.fuel .reserve-head td{background:#fafaf7;padding:1.2mm 2mm;font-size:8pt;font-weight:600;}
-.fuel .reserve-sub .row-lbl{padding-left:5mm;font-weight:500;font-size:7.5pt;color:var(--tx2);}
-.fuel tr.emph td{background:#fafaf7;}
-.fuel tr.emph .row-lbl{font-weight:700;}
-.fuel.mode-electric .fuel-only{display:none;}
-.fuel.mode-electric .reserve-sub .row-lbl{padding-left:2mm;font-weight:600;font-size:8pt;color:var(--tx);}
-
-.fuel-note{margin-top:1.5mm;font-size:6.5pt;color:var(--tx2);line-height:1.4;font-style:italic;}
-
-/* ═══ TO / LDG MINI PICTURES (below endurance calc) ═══ */
-.toldg{margin-top:3mm;display:grid;grid-template-columns:1fr 1fr;gap:2.5mm;}
-.toldg-card{border:0.5px solid var(--bd);border-radius:2mm;padding:1.5mm 2mm 1mm;background:#fff;}
-.toldg-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:0.5mm;}
-.toldg-title{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--tx2);}
-.toldg-cond{font-size:6.5pt;color:var(--tx2);}
-.toldg-svg{display:block;width:100%;height:22mm;}
-.toldg-nums{display:flex;justify-content:space-between;font-size:7pt;color:var(--tx2);margin-top:0.5mm;}
-.toldg-nums b{color:var(--tx);font-weight:700;font-size:8.5pt;margin-left:2px;}
-
-/* ═══ PRINT ═══ */
-@media print{
-  @page{size:A4 landscape;margin:1cm 0 0 1cm;}
-  body{background:#fff;padding:0;}
-  .nav,.toolbar{display:none;}
-  .page-wrap{padding:0;gap:0;}
-  .sheet{box-shadow:none !important;width:287mm !important;height:190mm !important;grid-template-columns:1fr 1fr !important;}
-  /* Preserve the light grey background on column headers + fuel section headers */
-  .wp th,.fuel .title-row td,.fuel thead.col-head td{background:var(--bg-sec) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .sheet.view-nav .fuel-half,
-  .sheet.view-fuel .nav-half{display:flex !important;}
-  .add-wp-row{display:none;}
-  .del-btn,.ins-btn{display:none !important;}
-  .trend-btn{border-right:none !important;}
-  .cell-inp.derived{background:transparent !important;color:var(--tx) !important;border:none !important;border-bottom:1px solid var(--bd2) !important;}
-  .wp tr.totals td.val{background:transparent !important;}
-  input,textarea,select{color:#000 !important;}
-  select{appearance:none;border:none !important;background:transparent !important;padding:0 !important;}
-}
-</style>
+<link rel="stylesheet" href="navplan.css">
 </head>
 <body>
 
@@ -433,7 +227,7 @@ const DEFAULT_STATE=()=>({
   altn:EMPTY_WP(),
   comments:'',
   totalsRemark:{u:'',l:''},
-  end:{ff:'',tf:'',tripT:'',altT:'',extraT:''},
+  end:{ff:'',tf:'',tripT:'',altT:'',extraT:'',tripManual:false},
   meta:{id:null,name:'',dirty:false}
 });
 
@@ -640,7 +434,7 @@ function wireRowInputs(){
       const i=+btn.dataset.del;
       if(i>0&&i<state.route.length-1){
         state.route.splice(i,1);
-        saveState();renderWP();refreshEndurance();
+        saveState();renderWP();refreshTotals();
       }
     });
   });
@@ -649,14 +443,14 @@ function wireRowInputs(){
       const i=+btn.dataset.ins;
       // Insert a new waypoint immediately after row i (DEP or any WP — never DEST)
       state.route.splice(i+1,0,EMPTY_WP());
-      saveState();renderWP();refreshEndurance();
+      saveState();renderWP();refreshTotals();
     });
   });
   const addBtn=document.getElementById('add-wp-btn');
   if(addBtn) addBtn.addEventListener('click',()=>{
     // Insert a new intermediate waypoint just before DEST
     state.route.splice(state.route.length-1,0,EMPTY_WP());
-    saveState();renderWP();refreshEndurance();
+    saveState();renderWP();refreshTotals();
   });
   tb.querySelectorAll('tr.totals [data-totals-rem]').forEach(inp=>{
     inp.addEventListener('input',()=>{
@@ -677,7 +471,8 @@ function refreshTotals(){
   const tds=tr.querySelectorAll('td');
   tds[1].textContent=totalDist>0?totalDist.toFixed(0):'';
   tds[3].innerHTML=(totalMin>0?fmtTime(totalMin)+'<span class="tot-extra">+10</span>':'');
-  refreshEndurance();   // trip time follows the total EET
+  syncTripFromRoute(totalMin);   // trip time auto-follows total EET (unless manual)
+  refreshEndurance();
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -772,29 +567,46 @@ function computeEndurance(){
   E.actualQ.value=actualQ>0?fmtNum(actualQ,2):'';
 }
 
-// Auto-fill the fuel calc: FF 26 L/h + Alternate 0:15 + Extra 0:30 (defaults, editable),
-// and keep Trip time synced to the NAV Plan's total EET.
-function endurancePull(){
-  let changed=false;
-  if(!state.end.ff){ state.end.ff='26'; E.ffInp.value='26'; changed=true; }
-  if(!state.end.altT){ state.end.altT='0:15'; E.altT.value='0:15'; changed=true; }
-  if(!state.end.extraT){ state.end.extraT='0:30'; E.extraT.value='0:30'; changed=true; }
-  const tripMin=state.route.reduce((s,r)=>s+(parseTime(r.eet)||0),0);   // total EET from waypoint table
-  if(tripMin>0){
-    const ts=fmtTime(tripMin);
-    if(state.end.tripT!==ts){ state.end.tripT=ts; E.tripT.value=ts; changed=true; }
+// Seed convenience defaults (FF 26 L/h + Alternate 0:15 + Extra 0:30) into any
+// still-empty field. Runs ONCE at page init and after Clear — never on every
+// refresh — so the fields stay freely editable: a field the user clears stays
+// cleared. Persisted via saveLocal (not saveState) so seeding never lights the
+// unsaved-changes dot on a freshly opened or loaded plan.
+function seedEnduranceDefaults(){
+  let seeded=false;
+  if(!state.end.ff){ state.end.ff='26'; seeded=true; }
+  if(!state.end.altT){ state.end.altT='0:15'; seeded=true; }
+  if(!state.end.extraT){ state.end.extraT='0:30'; seeded=true; }
+  if(seeded){
+    E.ffInp.value=state.end.ff; E.altT.value=state.end.altT; E.extraT.value=state.end.extraT;
+    saveLocal();
   }
-  if(changed) saveState();
+  syncTripFromRoute();
 }
 
+// Trip time auto-follows the NAV Plan's total EET — UNLESS the user has typed
+// their own value (state.end.tripManual). Clearing the field re-enables auto
+// mode. Read-only w.r.t. persisted state: it only touches the in-memory value
+// and the input element (no saveState), so route edits and plan loads never
+// dirty the plan. When all EETs are cleared the trip time clears too (no stale
+// value driving the fuel calc). Pass the already-computed EET total when the
+// caller has it, to avoid a redundant reduce on the typing hot path.
+function syncTripFromRoute(eetTotal){
+  if(state.end.tripManual) return;
+  const eet=(eetTotal!=null)?eetTotal:state.route.reduce((s,r)=>s+(parseTime(r.eet)||0),0);
+  const ts=eet>0?fmtTime(eet):'';
+  if(state.end.tripT!==ts){ state.end.tripT=ts; E.tripT.value=ts; }
+}
+
+// Pure: recompute only the derived fuel-table cells. No state mutation, no
+// saveState — safe to call from render, load and pageshow paths. Static labels
+// (applyModeUI) are set once at init, not here.
 function refreshEndurance(){
-  endurancePull();
-  applyModeUI();
   computeEndurance();
 }
 
-// Wire endurance inputs (editable: ff + tf + time fields; qty cells are derived)
-[['ff','ffInp'],['tf','tfInp'],['tripT','tripT'],['altT','altT'],['extraT','extraT']]
+// Wire endurance inputs (editable: ff + tf + alt/extra times; qty cells derived)
+[['ff','ffInp'],['tf','tfInp'],['altT','altT'],['extraT','extraT']]
   .forEach(([k,elKey])=>{
     const el=E[elKey];
     if(!el) return;
@@ -803,6 +615,15 @@ function refreshEndurance(){
       saveState();refreshEndurance();
     });
   });
+// Trip time is special: typing a value marks it manual (stops auto-follow);
+// clearing it resumes auto-follow from the route EET.
+E.tripT.addEventListener('input',()=>{
+  state.end.tripT=E.tripT.value;
+  state.end.tripManual=E.tripT.value.trim()!=='';
+  saveState();
+  if(!state.end.tripManual) syncTripFromRoute();
+  refreshEndurance();
+});
 
 /* ═══ Toolbar ═══ */
 document.getElementById('btn-clear').addEventListener('click',()=>{
@@ -815,6 +636,7 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
   ta.value='';
   E.ffInp.value='';E.tfInp.value='';E.tripT.value='';E.altT.value='';E.extraT.value='';
   renderWP();
+  seedEnduranceDefaults();   // re-seed FF/alt/extra defaults on the fresh form
   refreshEndurance();
 });
 document.getElementById('btn-print').addEventListener('click',()=>window.print());
@@ -884,6 +706,7 @@ document.addEventListener('velis:after-load',()=>{
   E.altT.value=state.end.altT||'';
   E.extraT.value=state.end.extraT||'';
   renderWP();
+  syncTripFromRoute();   // trip time follows the loaded route (auto mode only)
   refreshEndurance();
 });
 
@@ -1011,7 +834,7 @@ function applyRpImport(parsed){
       state.meta = {...(state.meta||{id:null,name:'',dirty:false}), dirty:true};
       saveLocal();
       window.velisPlan&&window.velisPlan.markDirty();
-      renderWP();refreshEndurance();
+      renderWP();refreshTotals();
     }
     return true;
   }
@@ -1034,7 +857,7 @@ function applyImport(parsed){
   state.meta = {...(state.meta||{id:null,name:'',dirty:false}), dirty:true};
   saveLocal();
   window.velisPlan&&window.velisPlan.markDirty();
-  renderWP();refreshEndurance();
+  renderWP();refreshTotals();
   return true;
 }
 
@@ -1287,10 +1110,13 @@ importBtn.addEventListener('click',async()=>{
 });
 
 /* ═══ Init ═══ */
+applyModeUI();            // static fuel-mode labels + TO/LDG visibility (set once)
+seedEnduranceDefaults();  // one-time FF/alt/extra defaults + initial trip auto-fill
 renderWP();
 refreshEndurance();
-// Re-pull totals when returning from another page (plan_sync.js owns the dirty dot)
-window.addEventListener('pageshow',refreshEndurance);
+// Re-sync trip time + refresh when returning from another page (bfcache restore).
+// syncTripFromRoute/refreshEndurance are read-only; plan_sync.js owns the dirty dot.
+window.addEventListener('pageshow',()=>{ syncTripFromRoute(); refreshEndurance(); });
 
 /* ═════════════════════════════════════════════════════════════════════
    TAKEOFF / LANDING mini pictures — uses window.da20TakeoffCalc
