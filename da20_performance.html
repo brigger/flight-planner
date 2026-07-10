@@ -34,6 +34,7 @@ h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 6px;text-transfo
 .sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,0.15);cursor:pointer;}
 .sr input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer;}
 .sv{font-size:13px;font-weight:600;color:var(--tx);min-width:78px;text-align:right;}
+.ro-src{flex:1;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:0.05em;}
 .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--tx2);margin-top:8px;cursor:pointer;}
 .chk input{accent-color:var(--blue);width:15px;height:15px;}
 .pwr-lbl{font-size:12.5px;color:var(--tx2);font-weight:500;margin:0 0 8px;}
@@ -93,7 +94,9 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     <h3>Rate of climb</h3>
     <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="14000" step="25" value="1525"><span class="sv" id="v-pa">1,525 ft</span></div>
     <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="i-oat" min="-20" max="45" step="1" value="15"><span class="sv" id="v-oat">+15 °C</span></div>
+    <div class="sr"><label>Take-off weight</label><span class="ro-src">Route Planner &mdash; W&amp;B</span><span class="sv" id="v-w">&mdash; kg</span></div>
     <label class="chk"><input type="checkbox" id="i-fair"> Without wheel fairings (POH: −3 % climb)</label>
+    <p class="note" style="margin:8px 0 0;">Take-off weight comes from the <strong>Route Planner</strong> (empty weight + pilot, pax &amp; baggage + fuel). The POH climb chart is fixed at 800 kg &mdash; below MTOW, actual climb is better, so the figures are conservative.</p>
   </div>
 
   <div class="result-hero" id="hero">
@@ -297,10 +300,19 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
   }
   function roc(eqa){ const e=C.roc_line.equivalt_ft,r=C.roc_line.roc_fpm; return r[0]+(r[1]-r[0])/(e[1]-e[0])*(eqa-e[0]); }
 
+  // take-off weight from the Route Planner (velis_da20_route_state):
+  // empty weight + payload + fuel L × 0.72. Defaults mirror the planner's.
+  function routeWeight(){
+    let s={};
+    try{ s=JSON.parse(localStorage.getItem('velis_da20_route_state'))||{}; }catch(e){}
+    const num=(v,fb)=>{ const n=parseFloat(v); return isFinite(n)?n:fb; };
+    return num(s.emptyWeight,543)+num(s.payload,107)+num(s.fuel,60)*0.72;
+  }
   function update(){
     const pa=+$('i-pa').value, oat=+$('i-oat').value, nofair=$('i-fair').checked;
     $('v-pa').textContent=pa.toLocaleString()+' ft';
     $('v-oat').textContent=(oat>=0?'+':'')+oat+' °C';
+    $('v-w').textContent=Math.round(routeWeight())+' kg';
     if(!C) return;
     const eqa=equivAlt(pa,oat);
     let base=roc(eqa); if(base<0) base=0;
@@ -320,6 +332,11 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
   }
   ['i-pa','i-oat','i-fair'].forEach(id=>$(id).addEventListener('input',update));
+  // re-read the Route Planner weight when a plan is loaded, when another tab
+  // changes it, or when this page is restored from the back/forward cache
+  document.addEventListener('velis:after-load',update);
+  window.addEventListener('storage',e=>{ if(e.key==='velis_da20_route_state') update(); });
+  window.addEventListener('pageshow',e=>{ if(e.persisted) update(); });
 
   // ── source-data charts (rendered once) ──
   function renderSource(){

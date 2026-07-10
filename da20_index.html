@@ -31,6 +31,8 @@
   .sr{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
   .sr label{font-size:12px;color:var(--tx2);min-width:200px;font-weight:500;}
   .sv{font-size:12px;font-weight:600;color:var(--tx);min-width:72px;text-align:right;}
+  .num-in{font-family:var(--font);font-size:12px;font-weight:600;color:var(--tx);width:80px;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg-sec);text-align:right;margin-left:auto;}
+  .num-in:focus{outline:none;border-color:var(--blue);}
   /* Altitude slider with clickable 1000-ft tick row below the track. */
   .alt-wrap{flex:1;display:flex;flex-direction:column;min-width:0;}
   .alt-wrap input[type=range]{flex:initial;width:100%;}
@@ -105,7 +107,8 @@
   <div class="card">
     <h3>Fuel &amp; conditions</h3>
     <div class="sr"><label>Fuel on board</label><input type="range" id="fuel" min="0" max="76" step="1" value="60"><span class="sv" id="fuel-v">60 L</span></div>
-    <div class="sr"><label>Weight excl. fuel (W&amp;B)</label><input type="range" id="weight" min="500" max="750" step="5" value="650"><span class="sv" id="weight-v">650 kg</span></div>
+    <div class="sr"><label>Empty weight (aircraft W&amp;B sheet)</label><input type="number" class="num-in" id="empty-weight" min="450" max="650" step="0.5" value="543"><span class="sv" style="min-width:auto;">kg</span></div>
+    <div class="sr"><label>Pilot, pax &amp; baggage</label><input type="range" id="payload" min="0" max="260" step="1" value="107"><span class="sv" id="payload-v">107 kg</span></div>
     <div class="sr" style="align-items:flex-start;"><label style="padding-top:9px;">Cruise power (% BHP)</label><div class="pwr-btns" id="cruise-pwr">
       <button type="button" data-pct="55">55 %</button>
       <button type="button" data-pct="65" class="active">65 %</button>
@@ -179,7 +182,7 @@
     <h3>Weight &amp; balance</h3>
     <div class="wb-row">
       <div style="font-size:12px;color:var(--tx2);line-height:1.7;">
-        Empty + payload: <strong style="color:var(--tx);" id="wb-excl">—</strong> kg<br>
+        Empty weight: <strong style="color:var(--tx);" id="wb-empty">—</strong> kg &nbsp;+&nbsp; pilot, pax &amp; baggage: <strong style="color:var(--tx);" id="wb-payload">—</strong> kg<br>
         Fuel (<span id="wb-fuel-l">—</span> L × 0.72): <strong style="color:var(--tx);" id="wb-fuel-kg">—</strong> kg<br>
         Take-off weight: <strong style="color:var(--tx);" id="wb-total">—</strong> kg &nbsp;/&nbsp; MTOW 800 kg
       </div>
@@ -478,7 +481,10 @@ function wpLabel(i){
 function update(){
   if(!CR||!C) return;
   const fuelOnBoard=+document.getElementById('fuel').value;
-  const weightExclFuel=+document.getElementById('weight').value;
+  const _ew=parseFloat(document.getElementById('empty-weight').value);
+  const emptyWeight=isFinite(_ew)?_ew:543;
+  const payload=+document.getElementById('payload').value;
+  const weightExclFuel=emptyWeight+payload;
   const oat=+document.getElementById('oat').value;
   const reserveMin=+document.getElementById('reserve').value;
   const depAlt=+document.getElementById('dep-alt').value;
@@ -489,7 +495,7 @@ function update(){
 
   // Display
   document.getElementById('fuel-v').textContent=fuelOnBoard+' L';
-  document.getElementById('weight-v').textContent=weightExclFuel+' kg';
+  document.getElementById('payload-v').textContent=payload+' kg';
   document.getElementById('oat-v').textContent=(oat>=0?'+':'')+oat+' °C';
   document.getElementById('reserve-v').textContent=reserveMin+' min';
   document.getElementById('dep-alt-v').textContent=depAlt.toLocaleString()+' ft';
@@ -596,7 +602,8 @@ function update(){
   // ═══ WEIGHT & BALANCE ═══
   const fuelKg=fuelOnBoard*AVGAS_KG_PER_L;
   const totalWeight=weightExclFuel+fuelKg;
-  document.getElementById('wb-excl').textContent=Math.round(weightExclFuel);
+  document.getElementById('wb-empty').textContent=emptyWeight;
+  document.getElementById('wb-payload').textContent=payload;
   document.getElementById('wb-fuel-l').textContent=fuelOnBoard;
   document.getElementById('wb-fuel-kg').textContent=fuelKg.toFixed(1);
   document.getElementById('wb-total').textContent=totalWeight.toFixed(1);
@@ -783,7 +790,7 @@ function drawSVG(depAlt,arrAlt,results){
    STATE_FIELDS maps state-key → DOM input id. cruisePct, approach and legs
    are serialised separately (buttons / radio / array). */
 const STATE_FIELDS = {
-  fuel:'fuel', weightExclFuel:'weight', oat:'oat', reserveMin:'reserve',
+  fuel:'fuel', emptyWeight:'empty-weight', payload:'payload', oat:'oat', reserveMin:'reserve',
   depAlt:'dep-alt', arrAlt:'arr-alt', arrDist:'arr-dist',
   depName:'dep-name', arrName:'arr-name', perfAdj:'perf-adj',
 };
@@ -1039,7 +1046,7 @@ async function init(){
     _scheduled=true;
     requestAnimationFrame(()=>{_scheduled=false;update();});
   }
-  ['fuel','weight','oat','reserve','dep-alt','arr-alt','arr-dist','perf-adj'].forEach(id=>
+  ['fuel','empty-weight','payload','oat','reserve','dep-alt','arr-alt','arr-dist','perf-adj'].forEach(id=>
     document.getElementById(id).addEventListener('input',scheduleUpdate));
   ['dep-name','arr-name'].forEach(id=>
     document.getElementById(id).addEventListener('input',()=>saveState()));

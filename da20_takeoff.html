@@ -233,13 +233,13 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
 
   // OAT / pressure altitude / gross weight come from the Route Planner
   // (velis_da20_route_state): OAT slider, departure altitude, W&B take-off
-  // weight = weight excl. fuel + fuel L × 0.72. Defaults mirror the planner's.
+  // weight = empty + payload + fuel L × 0.72. Defaults mirror the planner's.
   const num=(v,fb)=>{ const n=parseFloat(v); return isFinite(n)?n:fb; };
   function routeConditions(){
     let s={};
     try{ s=JSON.parse(localStorage.getItem('velis_da20_route_state'))||{}; }catch(e){}
     const oat=num(s.oat,15), pa=num(s.depAlt,1525);
-    const w=num(s.weightExclFuel,650)+num(s.fuel,60)*0.72;
+    const w=num(s.emptyWeight,543)+num(s.payload,107)+num(s.fuel,60)*0.72;
     return {oat,pa,w};
   }
   function readInputs(){ const rc=routeConditions(); return { oat:rc.oat, pa:rc.pa, w:rc.w, hw:+$('i-hw').value, oh:+$('i-oh').value }; }
