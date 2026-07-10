@@ -49,6 +49,7 @@ h4{font-size:10.5px;font-weight:600;color:var(--tx2);margin:0 0 8px;text-transfo
 .sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);box-shadow:0 1px 3px rgba(0,0,0,0.15);cursor:pointer;}
 .sr input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer;}
 .sv{font-size:13px;font-weight:600;color:var(--tx);min-width:78px;text-align:right;}
+.ro-src{flex:1;font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:0.05em;}
 
 /* ── Takeoff-distance diagram + result ── */
 #svg-to{display:block;width:100%;min-width:320px;margin:2px 0 10px;}
@@ -93,11 +94,12 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
 
   <div class="card">
     <h3>Conditions</h3>
-    <div class="sr"><label>Outside air temp (OAT)</label><input type="range" id="i-oat" min="-20" max="45" step="1" value="15"><span class="sv" id="v-oat">+15 °C</span></div>
-    <div class="sr"><label>Pressure altitude</label><input type="range" id="i-pa" min="0" max="6000" step="25" value="1525"><span class="sv" id="v-pa">1,525 ft</span></div>
-    <div class="sr"><label>Gross weight</label><input type="range" id="i-w" min="600" max="800" step="5" value="800"><span class="sv" id="v-w">800 kg</span></div>
+    <div class="sr"><label>Outside air temp (OAT)</label><span class="ro-src">Route Planner</span><span class="sv" id="v-oat">+15 °C</span></div>
+    <div class="sr"><label>Pressure altitude</label><span class="ro-src">Route Planner &mdash; departure alt</span><span class="sv" id="v-pa">1,525 ft</span></div>
+    <div class="sr"><label>Gross weight</label><span class="ro-src">Route Planner &mdash; W&amp;B take-off weight</span><span class="sv" id="v-w">800 kg</span></div>
     <div class="sr"><label>Headwind</label><input type="range" id="i-hw" min="-5" max="20" step="1" value="0"><span class="sv" id="v-hw">0 kt</span></div>
     <div class="sr"><label>Obstacle height</label><input type="range" id="i-oh" min="0" max="15" step="0.5" value="5"><span class="sv" id="v-oh">5.0 m</span></div>
+    <p class="note" style="margin:2px 0 0;">OAT, pressure altitude and gross weight are taken from the <strong>Route Planner</strong> (OAT slider, departure altitude, W&amp;B take-off weight incl. fuel) &mdash; adjust them there.</p>
   </div>
 
   <div class="card">
@@ -229,13 +231,24 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     svg.innerHTML=h;
   }
 
-  function readInputs(){ return { oat:+$('i-oat').value, pa:+$('i-pa').value, w:+$('i-w').value, hw:+$('i-hw').value, oh:+$('i-oh').value }; }
+  // OAT / pressure altitude / gross weight come from the Route Planner
+  // (velis_da20_route_state): OAT slider, departure altitude, W&B take-off
+  // weight = weight excl. fuel + fuel L × 0.72. Defaults mirror the planner's.
+  const num=(v,fb)=>{ const n=parseFloat(v); return isFinite(n)?n:fb; };
+  function routeConditions(){
+    let s={};
+    try{ s=JSON.parse(localStorage.getItem('velis_da20_route_state'))||{}; }catch(e){}
+    const oat=num(s.oat,15), pa=num(s.depAlt,1525);
+    const w=num(s.weightExclFuel,650)+num(s.fuel,60)*0.72;
+    return {oat,pa,w};
+  }
+  function readInputs(){ const rc=routeConditions(); return { oat:rc.oat, pa:rc.pa, w:rc.w, hw:+$('i-hw').value, oh:+$('i-oh').value }; }
   function fmtSigned(n,unit){ return (n>=0?'+':'')+n+' '+unit; }
   function update(){
     const s=readInputs();
     $('v-oat').textContent=fmtSigned(s.oat,'°C');
     $('v-pa').textContent=s.pa.toLocaleString()+' ft';
-    $('v-w').textContent=s.w+' kg';
+    $('v-w').textContent=Math.round(s.w)+' kg';
     $('v-hw').textContent=(s.hw>=0? s.hw+' kt' : Math.abs(s.hw)+' kt tail');
     $('v-oh').textContent=fmtOh(s.oh)+' m';
     if(!M) return;
@@ -254,6 +267,7 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     const oob=[];
     if(s.pa>6000) oob.push('pressure altitude above 6000 ft is extrapolated');
     if(s.oat>40) oob.push('OAT above 40 °C is extrapolated');
+    if(s.w>800) oob.push('take-off weight above MTOW (800 kg) is extrapolated');
     const warn=$('r-warn');
     if(oob.length){ warn.classList.add('show'); warn.textContent='⚠ '+oob.join('; ')+' — treat with extra caution.'; }
     else warn.classList.remove('show');
@@ -262,7 +276,12 @@ hr{border:none;border-top:0.5px solid var(--bd);margin:12px 0;}
     if(window.velisPlan&&window.velisPlan.markDirty) window.velisPlan.markDirty();
   }
 
-  ['i-oat','i-pa','i-w','i-hw','i-oh'].forEach(id=>$(id).addEventListener('input',update));
+  ['i-hw','i-oh'].forEach(id=>$(id).addEventListener('input',update));
+  // re-read Route Planner conditions when a plan is loaded, when another tab
+  // changes them, or when this page is restored from the back/forward cache
+  document.addEventListener('velis:after-load',()=>{ update(); updateLanding(); });
+  window.addEventListener('storage',e=>{ if(e.key==='velis_da20_route_state') update(); });
+  window.addEventListener('pageshow',e=>{ if(e.persisted) update(); });
   fetch('da20_c1_takeoff.json').then(r=>r.json()).then(j=>{ M=buildModel(j); update(); })
     .catch(e=>{ $('r-dist').textContent='!'; $('r-lbl').textContent='Could not load da20_c1_takeoff.json'; console.error(e); });
   update();
