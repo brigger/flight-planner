@@ -786,7 +786,7 @@ function parseSkyDemon(text){
     if(/^S[RS]\s+\d/i.test(line)) continue;           // "SR 04:35 Z, MCT …" / "SS 18:18 …"
     if(/^MSA\b/i.test(line)) continue;                // column header
     if(/^°[tm]\b/.test(line)) continue;               // units row "°t … °m kt nm"
-    if(/^\d[\d'’]*\s*ft\s*\(/.test(line)){            // elevation line "1'526 ft (55 hPa)"
+    if(/^\d[\d,'’]*\s*ft\s*\(/.test(line)){           // elevation line "1'526 ft (55 hPa)" / "1,526 ft (55 hPa)"
       if(pending) pending.elev=line;
       continue;
     }
@@ -824,7 +824,7 @@ function wpFromSkyDemon(w,prevAlt){
   const {ident, wp:wpName} = window.velisWp.splitName(w.name);
   const dropQuote = window.velisWp.dropQuote;
   const toNum=s=>{const n=parseFloat(dropQuote(s));return isFinite(n)?n:null;};
-  const elevFt=toNum((String(w.elev||'').match(/^([\d'’]+)\s*ft/)||[])[1]);
+  const elevFt=toNum((String(w.elev||'').match(/^([\d,'’]+)\s*ft/)||[])[1]);
   const lvl=w.data?toNum(w.data.level):null;
   const curAlt=lvl??elevFt;
   let trend='';
