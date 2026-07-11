@@ -340,8 +340,9 @@ function wpRow(r,i,role,eetExtra){
     <td><input class="single-inp" data-f="ato" value="${esc(r.ato)}"></td>
     <td><input class="single-inp" data-f="wind" value="${esc(r.wind)}"></td>
     <td class="dual">
-      <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canDel?' style="padding-right:5mm;"':''}>
+      <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canDel?' style="padding-right:9mm;"':''}>
       <input class="dual-inp l" data-f="remark" value="${esc(r.remark)}">
+      ${canDel?`<button class="merge-btn" data-merge="${i}" title="Merge into leg below — removes this waypoint; its DIST and EET are added to the next leg" type="button">⤵</button>`:''}
       ${canDel?`<button class="del-btn" data-del="${i}" title="Remove waypoint">×</button>`:''}
     </td>
   </tr>`;
@@ -438,6 +439,9 @@ function wireRowInputs(){
       }
     });
   });
+  tb.querySelectorAll('[data-merge]').forEach(btn=>{
+    btn.addEventListener('click',()=>mergeRowIntoNext(+btn.dataset.merge));
+  });
   tb.querySelectorAll('[data-ins]').forEach(btn=>{
     btn.addEventListener('click',()=>{
       const i=+btn.dataset.ins;
@@ -473,6 +477,31 @@ function refreshTotals(){
   tds[3].innerHTML=(totalMin>0?fmtTime(totalMin)+'<span class="tot-extra">+10</span>':'');
   syncTripFromRoute(totalMin);   // trip time auto-follows total EET (unless manual)
   refreshEndurance();
+}
+
+/* ─── Merge a leg into the leg below ───
+   Row i is the leg that ENDS at waypoint i. Merging folds it into the leg
+   that ends at waypoint i+1: waypoint i disappears, the row below keeps its
+   own WP / HDG / ALT / WIND and gains row i's DIST + EET, so the resulting
+   leg runs from waypoint i-1 straight to waypoint i+1. Only intermediate
+   rows can merge (DEP has no leg leading to it; DEST has no row below).
+   Empty / non-numeric DIST or EET counts as 0; if both cells are empty the
+   remaining cell is left untouched. */
+function mergeRowIntoNext(i){
+  if(!(i>0&&i<state.route.length-1)) return;
+  const src=state.route[i],dst=state.route[i+1];
+  const d1=parseNum(src.dist),d2=parseNum(dst.dist);
+  if(isFinite(d1)||isFinite(d2)){
+    const sum=(isFinite(d1)?d1:0)+(isFinite(d2)?d2:0);
+    dst.dist=String(Math.round(sum*10)/10);
+  }
+  const t1=parseTime(src.eet),t2=parseTime(dst.eet);
+  if(isFinite(t1)||isFinite(t2)){
+    const sum=Math.round((isFinite(t1)?t1:0)+(isFinite(t2)?t2:0));
+    dst.eet=sum>0?fmtTime(sum):'';
+  }
+  state.route.splice(i,1);
+  saveState();renderWP();refreshTotals();
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
