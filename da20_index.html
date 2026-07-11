@@ -147,7 +147,7 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <h3 style="margin:0;">Flight profile</h3>
-      <button type="button" class="tool-btn" id="btn-optimize-alt" title="Adjust intermediate-leg altitudes to a feasible climb/descent profile (highest, departure and destination altitudes are kept).">Optimize ALT</button>
+      <button type="button" class="tool-btn" id="btn-optimize-alt" title="Adjust intermediate-leg altitudes to a feasible climb/descent profile (departure, destination and every peak/valley altitude are kept).">Optimize ALT</button>
     </div>
     <div class="sr" title="Real-world climb performance is typically better than book values. Scales the ROC up by the chosen percentage; climb time, distance and fuel burn all follow."><label>Performance adjustment (climb)</label><input type="range" id="perf-adj" min="0" max="10" step="1" value="0"><span class="sv" id="perf-adj-v">+0%</span></div>
     <div style="overflow-x:auto;"><svg id="svg" viewBox="0 0 760 240" width="100%" style="display:block;min-width:320px;"></svg></div>
@@ -826,7 +826,11 @@ function loadState(){
 
 /* ═══ OPTIMIZE ALT ═══
    Reassign intermediate-leg altitudes to a feasible climb/descent profile.
-   Preserved: depAlt, arrAlt, the highest altitude. Leg distances unchanged. */
+   Preserved (anchors): depAlt, arrAlt and EVERY local extremum of the planned
+   profile — each peak and each valley, plateaus included in full. Leg
+   distances unchanged. Between consecutive anchors the segment is monotone:
+   climbs use the DA20 ROC model from the previous anchor, capped at the
+   upcoming peak; descents are linear down to the next anchor. */
 function maxAltAtDistance(fromAlt,availNm,capAlt,oat,adjPct){
   if(availNm<=0||capAlt<=fromAlt) return Math.min(fromAlt,capAlt);
   const factor=1+(+adjPct||0)/100;
@@ -843,6 +847,25 @@ function maxAltAtDistance(fromAlt,availNm,capAlt,oat,adjPct){
   }
   return alt;
 }
+/* Anchor indices in the DEP..DEST point sequence ({alt,d} objects):
+   departure, destination and every local extremum (peak or valley). A plateau
+   (run of consecutive equal altitudes) that forms an extremum — or that
+   touches DEP/DEST — is anchored in full, so an all-flat route is untouched. */
+function findAltAnchors(pts){
+  const M=pts.length, anchor=new Array(M).fill(false);
+  anchor[0]=anchor[M-1]=true;
+  let i=0;
+  while(i<M){
+    let j=i; while(j+1<M&&pts[j+1].alt===pts[i].alt) j++;   // plateau run [i..j]
+    const prev=i>0?pts[i-1].alt:null, next=j<M-1?pts[j+1].alt:null;
+    const isPeak=(prev===null||prev<pts[i].alt)&&(next===null||next<pts[i].alt);
+    const isValley=(prev===null||prev>pts[i].alt)&&(next===null||next>pts[i].alt);
+    if(isPeak||isValley) for(let k=i;k<=j;k++) anchor[k]=true;
+    i=j+1;
+  }
+  const out=[]; for(let k=0;k<M;k++) if(anchor[k]) out.push(k);
+  return out;
+}
 function optimizeAltitudes(){
   if(!legs.length){alert('No intermediate legs to optimize.');return;}
   const depAlt=+document.getElementById('dep-alt').value;
@@ -855,27 +878,31 @@ function optimizeAltitudes(){
   let acc=0; for(let i=0;i<N;i++){acc+=legs[i].dist;cumDist.push(acc);}
   const destDist=acc+arrDist;
 
-  const peakAlt=Math.max(depAlt,arrAlt,...legs.map(l=>l.alt));
-  let anchorIdx=-1;
-  for(let i=N-1;i>=0;i--){if(legs[i].alt===peakAlt){anchorIdx=i;break;}}
+  // Point sequence: 0 = DEP, 1..N = legs, N+1 = DEST.
+  const pts=[{alt:depAlt,d:0}];
+  for(let i=0;i<N;i++) pts.push({alt:legs[i].alt,d:cumDist[i]});
+  pts.push({alt:arrAlt,d:destDist});
+  const anchors=findAltAnchors(pts);
 
-  let peakEndDist;
-  if(anchorIdx>=0) peakEndDist=cumDist[anchorIdx];
-  else if(depAlt>=arrAlt) peakEndDist=0;
-  else peakEndDist=destDist;
-
-  for(let i=0;i<N;i++){
-    if(i===anchorIdx) continue;
-    const d=cumDist[i];
-    let newAlt;
-    if(d<=peakEndDist){
-      newAlt=maxAltAtDistance(depAlt,d,peakAlt,oat,perfAdj);
-    } else {
-      const descTotal=destDist-peakEndDist;
-      const frac=descTotal>0?(d-peakEndDist)/descTotal:0;
-      newAlt=peakAlt - frac*(peakAlt-arrAlt);
+  // Reshape each anchor-to-anchor segment into a pure climb or pure descent;
+  // only the non-anchor waypoints inside a segment are adjusted.
+  for(let k=0;k+1<anchors.length;k++){
+    const A=pts[anchors[k]], B=pts[anchors[k+1]];
+    for(let p=anchors[k]+1;p<anchors[k+1];p++){
+      let newAlt;
+      if(B.alt>A.alt){
+        // Climb segment: max altitude achievable from anchor A at this
+        // distance, capped at the upcoming peak B — then level cruise.
+        newAlt=maxAltAtDistance(A.alt,pts[p].d-A.d,B.alt,oat,perfAdj);
+      } else {
+        // Descent (or level) segment: linear from (A.d, A.alt) → (B.d, B.alt),
+        // landing exactly on B and staying within [B.alt, A.alt].
+        const span=B.d-A.d;
+        const frac=span>0?(pts[p].d-A.d)/span:0;
+        newAlt=A.alt - frac*(A.alt-B.alt);
+      }
+      legs[p-1].alt=Math.round(Math.max(500,Math.min(15000,newAlt)));
     }
-    legs[i].alt=Math.round(Math.max(500,Math.min(15000,newAlt)));
   }
   renderLegs(); saveState(); update();
 }
