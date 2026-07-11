@@ -333,7 +333,9 @@ function buildRouteHTML(){
 function wpRow(r,i,role,eetExtra){
   const canDel=role==='wp';
   const canIns=role!=='dest';
-  const canMerge=role==='wp'&&i<state.route.length-2;   // next row must not be DEST
+  const canMergeUp=role==='wp'&&i>=2;                     // previous row must not be DEP
+  const canMergeDn=role==='wp'&&i<state.route.length-2;   // next row must not be DEST
+  const canMerge=canMergeUp||canMergeDn;
   return `<tr class="${role}" data-idx="${i}">
     <td class="dual">
       <input class="dual-inp u" data-f="freq" value="${esc(r.freq)}">
@@ -349,7 +351,8 @@ function wpRow(r,i,role,eetExtra){
     <td class="dual">
       <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canMerge?' style="padding-right:9mm;"':canDel?' style="padding-right:5mm;"':''}>
       <input class="dual-inp l" data-f="remark" value="${esc(r.remark)}">
-      ${canMerge?`<button class="merge-btn" data-merge="${i}" title="Merge with leg below — removes the next waypoint; its DIST and EET are added to this leg" type="button">⤵</button>`:''}
+      ${canMergeUp?`<button class="merge-btn merge-up" data-merge-up="${i}" title="Merge with leg above — removes the previous waypoint; its DIST and EET are added to this leg" type="button">⤴</button>`:''}
+      ${canMergeDn?`<button class="merge-btn merge-dn" data-merge-dn="${i}" title="Merge with leg below — removes the next waypoint; its DIST and EET are added to this leg" type="button">⤵</button>`:''}
       ${canDel?`<button class="del-btn" data-del="${i}" title="Remove waypoint">×</button>`:''}
     </td>
   </tr>`;
@@ -446,8 +449,11 @@ function wireRowInputs(){
       }
     });
   });
-  tb.querySelectorAll('[data-merge]').forEach(btn=>{
-    btn.addEventListener('click',()=>mergeNextIntoRow(+btn.dataset.merge));
+  tb.querySelectorAll('[data-merge-up]').forEach(btn=>{
+    btn.addEventListener('click',()=>mergeAdjacentIntoRow(+btn.dataset.mergeUp,-1));
+  });
+  tb.querySelectorAll('[data-merge-dn]').forEach(btn=>{
+    btn.addEventListener('click',()=>mergeAdjacentIntoRow(+btn.dataset.mergeDn,1));
   });
   tb.querySelectorAll('[data-ins]').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -484,17 +490,17 @@ function refreshTotals(){
   tds[3].innerHTML=(totalMin>0?fmtTime(totalMin)+'<span class="tot-extra">+10</span>':'');
 }
 
-/* ─── Merge the leg below into this row ───
-   Row i is the leg that ENDS at waypoint i. Merging removes the NEXT
-   waypoint (i+1): row i keeps its own WP / HDG / ALT / WIND and gains row
-   i+1's DIST + EET, so the resulting leg still ends at waypoint i and the
-   route continues from there to waypoint i+2. Both rows must be
-   intermediate (DEP has no inbound leg; DEST must never be removed).
+/* ─── Merge an adjacent leg into this row ───
+   Row i is the leg that ENDS at waypoint i. Merging removes the adjacent
+   waypoint (i+dir, dir = -1 up / +1 down): row i keeps its own WP / HDG /
+   ALT / WIND and gains that row's DIST + EET. Both rows must be
+   intermediate (DEP has no inbound leg; DEP/DEST must never be removed).
    Empty / non-numeric DIST or EET counts as 0; if both cells are empty the
    remaining cell is left untouched. */
-function mergeNextIntoRow(i){
-  if(!(i>0&&i+1<state.route.length-1)) return;
-  const src=state.route[i+1],dst=state.route[i];
+function mergeAdjacentIntoRow(i,dir){
+  const j=i+dir;
+  if(!(i>0&&i<state.route.length-1&&j>0&&j<state.route.length-1)) return;
+  const src=state.route[j],dst=state.route[i];
   const d1=parseNum(src.dist),d2=parseNum(dst.dist);
   if(isFinite(d1)||isFinite(d2)){
     const sum=(isFinite(d1)?d1:0)+(isFinite(d2)?d2:0);
@@ -505,7 +511,7 @@ function mergeNextIntoRow(i){
     const sum=Math.round((isFinite(t1)?t1:0)+(isFinite(t2)?t2:0));
     dst.eet=sum>0?fmtTime(sum):'';
   }
-  state.route.splice(i+1,1);
+  state.route.splice(j,1);
   saveState();renderWP();refreshEndurance();
 }
 
