@@ -327,6 +327,7 @@ function buildRouteHTML(){
 function wpRow(r,i,role,eetExtra){
   const canDel=role==='wp';
   const canIns=role!=='dest';
+  const canMerge=role==='wp'&&i<state.route.length-2;   // next row must not be DEST
   return `<tr class="${role}" data-idx="${i}">
     <td class="dual">
       <input class="dual-inp u" data-f="freq" value="${esc(r.freq)}">
@@ -340,9 +341,9 @@ function wpRow(r,i,role,eetExtra){
     <td><input class="single-inp" data-f="ato" value="${esc(r.ato)}"></td>
     <td><input class="single-inp" data-f="wind" value="${esc(r.wind)}"></td>
     <td class="dual">
-      <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canDel?' style="padding-right:9mm;"':''}>
+      <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canMerge?' style="padding-right:9mm;"':canDel?' style="padding-right:5mm;"':''}>
       <input class="dual-inp l" data-f="remark" value="${esc(r.remark)}">
-      ${canDel?`<button class="merge-btn" data-merge="${i}" title="Merge into leg below — removes this waypoint; its DIST and EET are added to the next leg" type="button">⤵</button>`:''}
+      ${canMerge?`<button class="merge-btn" data-merge="${i}" title="Merge with leg below — removes the next waypoint; its DIST and EET are added to this leg" type="button">⤵</button>`:''}
       ${canDel?`<button class="del-btn" data-del="${i}" title="Remove waypoint">×</button>`:''}
     </td>
   </tr>`;
@@ -440,7 +441,7 @@ function wireRowInputs(){
     });
   });
   tb.querySelectorAll('[data-merge]').forEach(btn=>{
-    btn.addEventListener('click',()=>mergeRowIntoNext(+btn.dataset.merge));
+    btn.addEventListener('click',()=>mergeNextIntoRow(+btn.dataset.merge));
   });
   tb.querySelectorAll('[data-ins]').forEach(btn=>{
     btn.addEventListener('click',()=>{
@@ -479,17 +480,17 @@ function refreshTotals(){
   refreshEndurance();
 }
 
-/* ─── Merge a leg into the leg below ───
-   Row i is the leg that ENDS at waypoint i. Merging folds it into the leg
-   that ends at waypoint i+1: waypoint i disappears, the row below keeps its
-   own WP / HDG / ALT / WIND and gains row i's DIST + EET, so the resulting
-   leg runs from waypoint i-1 straight to waypoint i+1. Only intermediate
-   rows can merge (DEP has no leg leading to it; DEST has no row below).
+/* ─── Merge the leg below into this row ───
+   Row i is the leg that ENDS at waypoint i. Merging removes the NEXT
+   waypoint (i+1): row i keeps its own WP / HDG / ALT / WIND and gains row
+   i+1's DIST + EET, so the resulting leg still ends at waypoint i and the
+   route continues from there to waypoint i+2. Both rows must be
+   intermediate (DEP has no inbound leg; DEST must never be removed).
    Empty / non-numeric DIST or EET counts as 0; if both cells are empty the
    remaining cell is left untouched. */
-function mergeRowIntoNext(i){
-  if(!(i>0&&i<state.route.length-1)) return;
-  const src=state.route[i],dst=state.route[i+1];
+function mergeNextIntoRow(i){
+  if(!(i>0&&i+1<state.route.length-1)) return;
+  const src=state.route[i+1],dst=state.route[i];
   const d1=parseNum(src.dist),d2=parseNum(dst.dist);
   if(isFinite(d1)||isFinite(d2)){
     const sum=(isFinite(d1)?d1:0)+(isFinite(d2)?d2:0);
@@ -500,7 +501,7 @@ function mergeRowIntoNext(i){
     const sum=Math.round((isFinite(t1)?t1:0)+(isFinite(t2)?t2:0));
     dst.eet=sum>0?fmtTime(sum):'';
   }
-  state.route.splice(i,1);
+  state.route.splice(i+1,1);
   saveState();renderWP();refreshTotals();
 }
 
