@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=3">
+<link rel="stylesheet" href="navplan.css?v=4">
 </head>
 <body>
 
@@ -442,11 +442,9 @@ function wireRowInputs(){
     });
   });
   tb.querySelectorAll('.freq-pick').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const inp=btn.parentElement.querySelector('input[data-f="ident"],input[data-af="ident"]');
-      if(!inp) return;
-      inp.focus();
-      if(typeof inp.showPicker==='function'){try{inp.showPicker();}catch(e){}}
+    btn.addEventListener('click',ev=>{
+      ev.stopPropagation();          // keep the document click-away handler from closing it immediately
+      toggleFreqMenu(btn);
     });
   });
   tb.querySelectorAll('.trend-btn[data-trend-idx]').forEach(btn=>{
@@ -621,6 +619,49 @@ function syncRowInputs(i){
     if(inp&&inp.value!==state.route[i][f]&&document.activeElement!==inp) inp.value=state.route[i][f];
   });
 }
+
+/* Custom dropdown for the ▾ button — Safari can't open a datalist
+   programmatically (showPicker unsupported), so the arrow gets its own
+   menu. The datalist stays for type-ahead while typing. */
+let freqMenuEl=null,freqMenuBtn=null;
+function closeFreqMenu(){
+  if(freqMenuEl){freqMenuEl.remove();freqMenuEl=null;freqMenuBtn=null;}
+}
+function toggleFreqMenu(btn){
+  if(freqMenuBtn===btn){closeFreqMenu();return;}
+  closeFreqMenu();
+  const menu=document.createElement('div');
+  menu.className='freq-menu';
+  menu.innerHTML=freqDir.length
+    ? freqDir.map((e,idx)=>`<button type="button" data-mi="${idx}"><span class="fm-name">${esc(e.name)}</span><span class="fm-freq">${esc(e.freq)}</span></button>`).join('')
+    : '<div class="fm-empty">No waypoints yet</div>';
+  document.body.appendChild(menu);
+  const r=btn.getBoundingClientRect();
+  const mw=Math.max(menu.offsetWidth,150);
+  menu.style.left=Math.max(4,Math.min(r.left,window.innerWidth-mw-8))+'px';
+  menu.style.top=(r.bottom+menu.offsetHeight+8>window.innerHeight?r.top-menu.offsetHeight-2:r.bottom+2)+'px';
+  menu.addEventListener('click',ev=>{
+    const b=ev.target.closest('[data-mi]');
+    if(!b) return;
+    const entry=freqDir[+b.dataset.mi];
+    const td=btn.parentElement;
+    const identInp=td.querySelector('input[data-f="ident"],input[data-af="ident"]');
+    if(identInp&&entry){
+      identInp.value=entry.name;
+      // Reuse the ident input listener: updates state, autofills the
+      // frequency from the directory and applies the LSPG defaults.
+      identInp.dispatchEvent(new Event('input',{bubbles:true}));
+    }
+    closeFreqMenu();
+  });
+  freqMenuEl=menu;freqMenuBtn=btn;
+}
+document.addEventListener('click',ev=>{
+  if(freqMenuEl&&!freqMenuEl.contains(ev.target)) closeFreqMenu();
+});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape')closeFreqMenu();});
+window.addEventListener('scroll',closeFreqMenu,true);
+window.addEventListener('resize',closeFreqMenu);
 
 /* ─── Header inputs ─── */
 document.querySelectorAll('input[data-h]').forEach(inp=>{
