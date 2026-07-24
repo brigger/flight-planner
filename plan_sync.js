@@ -51,7 +51,8 @@ window.velisWp = (function(){
   const VIEW_KEY       = 'velis_navplan_view';
   const AUTO_SYNC_KEY  = 'velis_auto_sync';            // 'ask' | 'always' | 'never' (per device)
   const AC_KEY         = 'velis_aircraft';             // selected aircraft id (UI pref)
-  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY]);
+  const FREQ_DIR_KEY   = 'velis_freq_directory';       // cached global freq directory (not per-plan data)
+  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY]);
 
   /* ─── Aircraft + Nav definition ─── */
   // Single source of truth for the aircraft selector and per-aircraft menus.

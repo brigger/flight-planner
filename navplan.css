@@ -137,6 +137,10 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
 .wp .merge-btn.merge-dn{bottom:0.7mm;}
 .wp .merge-btn:hover{opacity:1;background:#eef4fb;}
 .wp .ins-btn{position:absolute;left:50%;bottom:-2.2mm;transform:translateX(-50%);width:4.5mm;height:4.5mm;border-radius:50%;border:0.5px solid var(--blue);background:#fff;color:var(--blue);font-size:10.5pt;line-height:1;cursor:pointer;opacity:0;z-index:3;transition:opacity 0.12s,background 0.12s,color 0.12s;font-family:var(--font);padding:0;display:flex;align-items:center;justify-content:center;}
+/* ▾ opener for the waypoint/frequency datalist on the ident line of the FREQ column */
+.wp .freq-pick{position:absolute;right:0.4mm;bottom:0.6mm;width:3.2mm;height:3.2mm;border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:6.5pt;line-height:1;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.12s,background 0.12s;font-family:var(--font);}
+.wp tr:hover .freq-pick{opacity:0.6;}
+.wp .freq-pick:hover{opacity:1;background:#eef4fb;}
 .wp tr:hover .ins-btn{opacity:0.85;}
 .wp .ins-btn:hover{opacity:1;background:var(--blue);color:#fff;}
 
@@ -204,7 +208,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
   .sheet.view-nav .fuel-half,
   .sheet.view-fuel .nav-half{display:flex !important;}
   .add-wp-row{display:none;}
-  .del-btn,.ins-btn,.merge-btn{display:none !important;}
+  .del-btn,.ins-btn,.merge-btn,.freq-pick{display:none !important;}
   .trend-btn{border-right:none !important;}
   .cell-inp.derived{background:transparent !important;color:var(--tx) !important;border:none !important;border-bottom:1px solid var(--bd2) !important;}
   .wp tr.totals td.val{background:transparent !important;}

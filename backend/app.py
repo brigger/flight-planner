@@ -146,6 +146,16 @@ def bootstrap():
             for stmt in sql.split(";"):
                 if stmt.strip():
                     cur.execute(stmt)
+            # Seed the waypoint-frequency directory on first boot only (table
+            # empty). Admin edits via /api/freqs are never overwritten.
+            cur.execute("SELECT COUNT(*) FROM freq_directory")
+            if cur.fetchone()[0] == 0:
+                cur.executemany(
+                    "INSERT IGNORE INTO freq_directory (name, freq) VALUES (%s, %s)",
+                    [("LSPG", "128.475"), ("Buochs", "119.625"),
+                     ("Emmen", "118.005"), ("Zürich Info", "124.700"),
+                     ("Meiringen TWR", "130.155"), ("Meiringen Info", "135.480")],
+                )
             cur.close()
             c.close()
             return
@@ -691,6 +701,80 @@ def delete_plan(pid):
         "DELETE FROM flight_plans WHERE id = %s AND user_id = %s",
         (pid, request.user["id"]),
     )
+    ok = cur.rowcount > 0
+    cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True}
+
+
+# ── waypoint / frequency directory ─────────────────────────────────────
+# One global list feeding the Freq/Waypoint dropdown on the NAV Plan pages.
+# Reads are public (the calculator works without an account); writes are
+# admin-only via the Admin Dashboard.
+def valid_freq_entry(data):
+    name = (data.get("name") or "").strip()
+    freq = (data.get("freq") or "").strip()
+    if not (1 <= len(name) <= 80) or not (1 <= len(freq) <= 20):
+        return None, None
+    return name, freq
+
+
+@app.get("/api/freqs")
+def list_freqs():
+    c = conn(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT id, name, freq FROM freq_directory ORDER BY name")
+    rows = cur.fetchall()
+    cur.close(); c.close()
+    return jsonify(rows)
+
+
+@app.post("/api/freqs")
+@require_admin
+def create_freq():
+    name, freq = valid_freq_entry(request.get_json(force=True, silent=True) or {})
+    if not name:
+        return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    c = conn(); cur = c.cursor()
+    try:
+        cur.execute("INSERT INTO freq_directory (name, freq) VALUES (%s, %s)", (name, freq))
+        fid = cur.lastrowid
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            return jsonify({"error": "An entry with that name already exists."}), 409
+        raise
+    finally:
+        cur.close(); c.close()
+    return jsonify({"id": fid, "name": name, "freq": freq}), 201
+
+
+@app.put("/api/freqs/<int:fid>")
+@require_admin
+def update_freq(fid):
+    name, freq = valid_freq_entry(request.get_json(force=True, silent=True) or {})
+    if not name:
+        return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    c = conn(); cur = c.cursor()
+    try:
+        cur.execute("UPDATE freq_directory SET name = %s, freq = %s WHERE id = %s",
+                    (name, freq, fid))
+        ok = cur.rowcount > 0
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            return jsonify({"error": "An entry with that name already exists."}), 409
+        raise
+    finally:
+        cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True}
+
+
+@app.delete("/api/freqs/<int:fid>")
+@require_admin
+def delete_freq(fid):
+    c = conn(); cur = c.cursor()
+    cur.execute("DELETE FROM freq_directory WHERE id = %s", (fid,))
     ok = cur.rowcount > 0
     cur.close(); c.close()
     if not ok:

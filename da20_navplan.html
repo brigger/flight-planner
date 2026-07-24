@@ -6,7 +6,7 @@
 <title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=2">
+<link rel="stylesheet" href="navplan.css?v=3">
 </head>
 <body>
 
@@ -333,7 +333,8 @@ function wpRow(r,i,role,eetExtra){
   return `<tr class="${role}" data-idx="${i}">
     <td class="dual">
       <input class="dual-inp u" data-f="freq" value="${esc(r.freq)}">
-      <input class="dual-inp l" data-f="ident" value="${esc(r.ident)}">
+      <input class="dual-inp l" data-f="ident" list="wp-freq-list" value="${esc(r.ident)}">
+      <button class="freq-pick" title="Choose waypoint / frequency" type="button" tabindex="-1">▾</button>
     </td>
     <td><input class="single-inp" data-f="wp" value="${esc(r.wp)}"></td>
     <td><input class="single-inp" data-f="hdg" value="${esc(r.hdg)}"></td>
@@ -374,7 +375,8 @@ function altnRow(){
   return `<tr class="altn" data-altn="1">
     <td class="dual">
       <input class="dual-inp u" data-af="freq" value="${esc(r.freq)}">
-      <input class="dual-inp l" data-af="ident" value="${esc(r.ident)}">
+      <input class="dual-inp l" data-af="ident" list="wp-freq-list" value="${esc(r.ident)}">
+      <button class="freq-pick" title="Choose waypoint / frequency" type="button" tabindex="-1">▾</button>
     </td>
     <td><span class="wp-badge">ALTN</span><input class="single-inp" data-af="wp" value="${esc(r.wp)}" style="padding-top:3.5mm;"></td>
     <td><input class="single-inp" data-af="hdg" value="${esc(r.hdg)}"></td>
@@ -403,6 +405,15 @@ function wireRowInputs(){
     tr.querySelectorAll('input[data-f]').forEach(inp=>{
       inp.addEventListener('input',()=>{
         state.route[i][inp.dataset.f]=inp.value;
+        if(inp.dataset.f==='ident'){
+          const f=freqFor(inp.value);
+          if(f!=null&&state.route[i].freq!==f){
+            state.route[i].freq=f;
+            const fi=tr.querySelector('input[data-f="freq"]');
+            if(fi) fi.value=f;
+          }
+          if(applyLspgDefaults()){syncRowInputs(0);syncRowInputs(state.route.length-1);}
+        }
         saveState();
         if(inp.dataset.f==='dist'||inp.dataset.f==='eet') refreshTotals();
       });
@@ -410,7 +421,26 @@ function wireRowInputs(){
   });
   tb.querySelectorAll('[data-altn]').forEach(tr=>{
     tr.querySelectorAll('input[data-af]').forEach(inp=>{
-      inp.addEventListener('input',()=>{state.altn[inp.dataset.af]=inp.value;saveState();});
+      inp.addEventListener('input',()=>{
+        state.altn[inp.dataset.af]=inp.value;
+        if(inp.dataset.af==='ident'){
+          const f=freqFor(inp.value);
+          if(f!=null&&state.altn.freq!==f){
+            state.altn.freq=f;
+            const fi=tr.querySelector('input[data-af="freq"]');
+            if(fi) fi.value=f;
+          }
+        }
+        saveState();
+      });
+    });
+  });
+  tb.querySelectorAll('.freq-pick').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const inp=btn.parentElement.querySelector('input[data-f="ident"],input[data-af="ident"]');
+      if(!inp) return;
+      inp.focus();
+      if(typeof inp.showPicker==='function'){try{inp.showPicker();}catch(e){}}
     });
   });
   tb.querySelectorAll('.trend-btn[data-trend-idx]').forEach(btn=>{
@@ -512,6 +542,81 @@ function mergeAdjacentIntoRow(i,dir){
 }
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+/* ═════════════════════════════════════════════════════════════════════
+   WAYPOINT / FREQUENCY DIRECTORY — one global list, administered in the
+   Admin Dashboard (backend /api/freqs). Feeds the datalist on the ident
+   line of the Freq/Waypoint column; typing or picking a known name
+   autofills the frequency above it. Cached in localStorage so the
+   dropdown also works offline / signed-out.
+   ═════════════════════════════════════════════════════════════════════ */
+const FREQ_DIR_KEY='velis_freq_directory';
+const FREQ_DIR_DEFAULTS=[
+  {name:'LSPG',freq:'128.475'},
+  {name:'Buochs',freq:'119.625'},
+  {name:'Emmen',freq:'118.005'},
+  {name:'Zürich Info',freq:'124.700'},
+  {name:'Meiringen TWR',freq:'130.155'},
+  {name:'Meiringen Info',freq:'135.480'}
+];
+let freqDir=(function(){
+  try{
+    const a=JSON.parse(localStorage.getItem(FREQ_DIR_KEY));
+    if(Array.isArray(a)&&a.length) return a;
+  }catch(e){}
+  return FREQ_DIR_DEFAULTS.slice();
+})();
+function freqFor(name){
+  const n=String(name||'').trim().toLowerCase();
+  if(!n) return null;
+  const hit=freqDir.find(e=>String(e.name||'').trim().toLowerCase()===n);
+  return hit?hit.freq:null;
+}
+function renderFreqDatalist(){
+  let dl=document.getElementById('wp-freq-list');
+  if(!dl){dl=document.createElement('datalist');dl.id='wp-freq-list';document.body.appendChild(dl);}
+  dl.innerHTML=freqDir.map(e=>`<option value="${esc(e.name)}" label="${esc(e.freq)}"></option>`).join('');
+}
+async function fetchFreqDir(){
+  try{
+    const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/velis-planner/api';
+    const r=await fetch(API_BASE+'/freqs',{credentials:'include'});
+    if(!r.ok) return;
+    const rows=await r.json();
+    if(Array.isArray(rows)&&rows.length){
+      freqDir=rows.map(x=>({name:x.name,freq:x.freq}));
+      localStorage.setItem(FREQ_DIR_KEY,JSON.stringify(freqDir));
+      renderFreqDatalist();
+    }
+  }catch(e){/* offline — cached / built-in list stays active */}
+}
+
+/* LSPG conveniences — fills EMPTY cells only, never overwrites user input:
+   DEP = LSPG           → freq 128.475 (left), 134.130 "Info" (Remarks)
+   DEP or DEST = LSPG   → 124.700 "Zürich Info" on the DEST Remarks cell */
+function applyLspgDefaults(){
+  const dep=state.route[0],dest=state.route[state.route.length-1];
+  const isLspg=r=>String((r&&r.ident)||'').trim().toUpperCase()==='LSPG';
+  let changed=false;
+  if(isLspg(dep)){
+    if(!dep.freq){dep.freq=freqFor('LSPG')||'128.475';changed=true;}
+    if(!dep.freqR&&!dep.remark){dep.freqR='134.130';dep.remark='Info';changed=true;}
+  }
+  if((isLspg(dep)||isLspg(dest))&&!dest.freqR&&!dest.remark){
+    dest.freqR='124.700';dest.remark='Zürich Info';changed=true;
+  }
+  return changed;
+}
+// Refresh one row's freq/remark inputs from state without a full re-render
+// (a re-render would steal focus from the input being typed in).
+function syncRowInputs(i){
+  const tr=document.querySelector(`#wp-body tr[data-idx="${i}"]`);
+  if(!tr) return;
+  ['freq','ident','freqR','remark'].forEach(f=>{
+    const inp=tr.querySelector(`input[data-f="${f}"]`);
+    if(inp&&inp.value!==state.route[i][f]&&document.activeElement!==inp) inp.value=state.route[i][f];
+  });
+}
 
 /* ─── Header inputs ─── */
 document.querySelectorAll('input[data-h]').forEach(inp=>{
@@ -733,6 +838,7 @@ window.addEventListener('DOMContentLoaded',()=>{
 // Fired after plan_sync.js writes the loaded bundle's localStorage keys.
 document.addEventListener('velis:after-load',()=>{
   state=loadState();
+  if(applyLspgDefaults()) saveLocal();
   if(state.meta) state.meta.dirty=false;
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value=state.comments||'';
@@ -890,6 +996,7 @@ function applyImport(parsed){
     prevAlt=curAlt;
     return leg;
   });
+  applyLspgDefaults();
   state.meta = {...(state.meta||{id:null,name:'',dirty:false}), dirty:true};
   saveLocal();
   window.velisPlan&&window.velisPlan.markDirty();
@@ -1148,6 +1255,9 @@ importBtn.addEventListener('click',async()=>{
 /* ═══ Init ═══ */
 applyModeUI();            // static fuel-mode labels + TO/LDG visibility (set once)
 seedEnduranceDefaults();  // one-time FF/alt/extra defaults + initial trip auto-fill
+renderFreqDatalist();
+fetchFreqDir();
+if(applyLspgDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty
 renderWP();
 refreshEndurance();
 // Re-sync trip time + refresh when returning from another page (bfcache restore).
@@ -1182,7 +1292,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="da20_takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=20" defer></script>
+<script src="plan_sync.js?v=21" defer></script>
 
 </body>
 </html>

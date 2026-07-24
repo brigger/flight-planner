@@ -50,6 +50,15 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .tbl .del-btn{border:none;background:transparent;color:#B08888;cursor:pointer;font-size:16px;line-height:1;padding:4px 8px;border-radius:4px;}
 .tbl .del-btn:hover{color:#791F1F;background:#FCEBEB;}
 .tbl td.action{text-align:right;width:40px;padding:4px 8px;}
+/* Waypoint-frequency directory — in-place editable cells */
+#freqs-tbl{max-width:460px;}
+#freqs-tbl tbody tr{cursor:default;}
+#freqs-tbl tbody tr:hover{background:transparent;}
+.cell-edit{font-family:var(--font);font-size:12.5px;color:var(--tx);border:none;background:transparent;outline:none;width:100%;padding:2px 0;border-bottom:1px solid transparent;}
+.cell-edit:focus{border-bottom-color:var(--blue);}
+.cell-edit::placeholder{color:var(--tx3);font-style:italic;}
+#freqs-tbl .add-btn{border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:18px;line-height:1;padding:2px 8px;border-radius:4px;}
+#freqs-tbl .add-btn:hover{background:var(--blue-bg);}
 .access-deny{text-align:center;padding:40px 20px;}
 .access-deny h3{justify-content:center;font-size:16px;}
 .access-deny p{font-size:13px;color:var(--tx2);margin:8px 0;}
@@ -118,6 +127,19 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       </div>
     </div>
 
+    <div class="card">
+      <h3><span>Waypoint frequencies</span><span class="hint">Feeds the Freq/Waypoint dropdown on the NAV Plan pages — edits are live for all users</span></h3>
+      <div id="freqs-err" class="err" hidden></div>
+      <div style="overflow-x:auto;">
+        <table class="tbl" id="freqs-tbl">
+          <thead><tr>
+            <th>Name</th><th style="width:120px;">Frequency</th><th style="width:40px;"></th>
+          </tr></thead>
+          <tbody id="freqs-body"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
 </div></div>
@@ -161,7 +183,85 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     return r.json();
   }
 
-  let users=[], plans=[], filterUserId=null;
+  let users=[], plans=[], filterUserId=null, freqs=[];
+
+  /* ── waypoint / frequency directory ── */
+  function freqErr(msg){
+    const el=document.getElementById('freqs-err');
+    el.textContent=msg||''; el.hidden=!msg;
+  }
+  function renderFreqs(){
+    const body=document.getElementById('freqs-body');
+    body.innerHTML=freqs.map(f=>`<tr data-fid="${f.id}">
+      <td><input class="cell-edit" data-k="name" value="${esc(f.name)}"></td>
+      <td><input class="cell-edit" data-k="freq" value="${esc(f.freq)}"></td>
+      <td class="action"><button type="button" class="del-btn" data-fdel="${f.id}" title="Remove entry">×</button></td>
+    </tr>`).join('')+`<tr>
+      <td><input class="cell-edit" id="freq-new-name" placeholder="new waypoint…"></td>
+      <td><input class="cell-edit" id="freq-new-freq" placeholder="frequency…"></td>
+      <td class="action"><button type="button" class="add-btn" id="freq-add" title="Add entry">+</button></td>
+    </tr>`;
+
+    body.querySelectorAll('tr[data-fid] .cell-edit').forEach(inp=>{
+      inp.addEventListener('change',async()=>{
+        const tr=inp.closest('tr'), fid=+tr.dataset.fid;
+        const name=tr.querySelector('[data-k="name"]').value.trim();
+        const freq=tr.querySelector('[data-k="freq"]').value.trim();
+        if(!name||!freq) return;          // wait until both are filled
+        try{
+          await api(`/freqs/${fid}`,{method:'PUT',body:JSON.stringify({name,freq})});
+          const f=freqs.find(x=>x.id===fid);
+          if(f){f.name=name;f.freq=freq;}
+          freqErr('');
+        }catch(e){
+          freqErr(e.status===409?'An entry with that name already exists.':'Could not save: '+e.message);
+          renderFreqs();                  // roll back to server truth
+        }
+      });
+    });
+    const addName=document.getElementById('freq-new-name');
+    const addFreq=document.getElementById('freq-new-freq');
+    async function addEntry(){
+      const name=addName.value.trim(), freq=addFreq.value.trim();
+      if(!name||!freq){freqErr('Both a name and a frequency are needed.');return;}
+      try{
+        const row=await api('/freqs',{method:'POST',body:JSON.stringify({name,freq})});
+        freqs.push(row);
+        freqs.sort((a,b)=>a.name.localeCompare(b.name));
+        freqErr('');
+        renderFreqs();
+        document.getElementById('freq-new-name').focus();
+      }catch(e){
+        freqErr(e.status===409?'An entry with that name already exists.':'Could not add: '+e.message);
+      }
+    }
+    document.getElementById('freq-add').addEventListener('click',addEntry);
+    [addName,addFreq].forEach(inp=>inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')addEntry();}));
+    body.querySelectorAll('[data-fdel]').forEach(btn=>{
+      btn.addEventListener('click',async()=>{
+        const fid=+btn.dataset.fdel;
+        btn.disabled=true;
+        try{
+          await api(`/freqs/${fid}`,{method:'DELETE'});
+          freqs=freqs.filter(f=>f.id!==fid);
+          freqErr('');
+          renderFreqs();
+        }catch(e){
+          freqErr('Delete failed: '+e.message);
+          btn.disabled=false;
+        }
+      });
+    });
+  }
+  async function loadFreqs(){
+    try{
+      freqs=await api('/freqs');
+      renderFreqs();
+    }catch(e){
+      freqErr('Could not load the frequency directory: '+e.message);
+      document.getElementById('freqs-body').innerHTML='';
+    }
+  }
 
   function renderUsers(){
     const body=document.getElementById('users-body');
@@ -257,6 +357,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       plans=[];
     }
     renderUsers(); renderPlans(); updateStats();
+    loadFreqs();
   }
 
   document.getElementById('users-body').addEventListener('click',ev=>{
@@ -302,6 +403,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=20" defer></script>
+<script src="plan_sync.js?v=21" defer></script>
 </body>
 </html>
