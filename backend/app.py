@@ -35,7 +35,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FROM_EMAIL    = os.getenv("FROM_EMAIL", SMTP_USERNAME)
 ADMIN_EMAIL   = os.getenv("ADMIN_EMAIL", "patrick@brigger.com")
 
-# Path prefix the app is mounted at (e.g. "/velis-planner"). Host + scheme
+# Path prefix the app is mounted at (e.g. "/navigation-planner"). Host + scheme
 # are derived from the incoming request so cookies match whatever origin
 # the pilot is actually using (brigger.com vs www.brigger.com etc).
 PATH_PREFIX = os.getenv("PATH_PREFIX", "").rstrip("/")
@@ -988,7 +988,7 @@ def landing_html(first_name="", last_name="", email="", purpose="verify",
         captain    = f"{first_name} {last_name}".strip()
         email_line = email
         # Empty action → POSTs back to the current URL, which already includes
-        # the correct /velis-planner prefix (Nginx reverse proxy).
+        # the correct /navigation-planner prefix (Nginx reverse proxy).
         cta_html   = (f'<form class="cta-form" method="POST" action="">'
                       f'<button type="submit" class="cta">{esc(cta_label)} <span class="arrow">→</span></button>'
                       f'</form>')

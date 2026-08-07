@@ -581,7 +581,7 @@ function renderFreqDatalist(){
 }
 async function fetchFreqDir(){
   try{
-    const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/velis-planner/api';
+    const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/navigation-planner/api';
     const r=await fetch(API_BASE+'/freqs',{credentials:'include'});
     if(!r.ok) return;
     const rows=await r.json();
@@ -1325,7 +1325,7 @@ importBtn.addEventListener('click',async()=>{
   try{
     const fd=new FormData();
     fd.append('image',file);
-    const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/velis-planner/api';
+    const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/navigation-planner/api';
     const r=await fetch(API_BASE+'/import/skydemon-image',{method:'POST',body:fd,credentials:'include'});
     const data=await r.json().catch(()=>({}));
     if(!r.ok){

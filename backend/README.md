@@ -7,7 +7,7 @@ on a branded boarding-pass page.
 
 Deployed as the `flightplanner` container in
 `/opt/docker/docker-compose.yml` on the VPS. Listens on
-`127.0.0.1:8003`, reverse-proxied by Nginx at `/velis-planner/api/`.
+`127.0.0.1:8003`, reverse-proxied by Nginx at `/navigation-planner/api/`.
 
 ## Tables
 
@@ -29,7 +29,7 @@ Schema is auto-created on startup from `schema.sql`.
 | `SMTP_PORT` | no | default `587` |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | yes | Gmail app password works fine |
 | `FROM_EMAIL` | no | default = `SMTP_USERNAME` |
-| `PUBLIC_URL` | yes | absolute origin + path prefix that the magic link should resolve to — e.g. `https://example.com/velis-planner`. Email links are built as `{PUBLIC_URL}/api/auth/verify/<token>` |
+| `PUBLIC_URL` | yes | absolute origin + path prefix that the magic link should resolve to — e.g. `https://example.com/navigation-planner`. Email links are built as `{PUBLIC_URL}/api/auth/verify/<token>` |
 | `SITE_URL` | no | where the landing page's CTA sends the pilot; defaults to `PUBLIC_URL` |
 | `SESSION_COOKIE_SECURE` | prod | set `1` behind TLS, `0` for `http://localhost` dev |
 | `SESSION_COOKIE_NAME` | no | default `velis_session` |

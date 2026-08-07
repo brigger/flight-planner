@@ -1,6 +1,6 @@
-# Pipistrel Velis Electro — 3-Leg Route Planner
+# Navigation Planner
 
-A browser-based flight energy planner for the Pipistrel Velis Electro, supporting routes with up to two mountain passes (3 legs).
+A browser-based flight planner (routes, energy/fuel, NAV plans, takeoff & landing performance) for the Pipistrel Velis Electro and the Diamond DA20-C1 Katana.
 
 ## Files
 
@@ -16,15 +16,15 @@ npx live-server --open=index.html
 
 ## Deployment
 
-- **GitHub**: https://github.com/brigger/velis-route-planner
+- **GitHub**: https://github.com/brigger/navigation-planner
 - **VPS**: 95.217.222.205 (Ubuntu 24.04, Nginx)
-- **URL**: http://95.217.222.205/velis-planner/
+- **URL**: http://95.217.222.205/navigation-planner/
 
 ### Update VPS after changes
 
 ```bash
 git push
-ssh root@95.217.222.205 "cd /var/www/velis-planner && git pull"
+ssh root@95.217.222.205 "cd /var/www/navigation-planner && git pull"
 ```
 
 ### Reboot VPS
@@ -39,7 +39,7 @@ Nginx starts automatically on boot.
 
 After maillink.ch updates the DNS (A record for brigger.com → 95.217.222.205):
 
-1. Verify it works: http://www.brigger.com/velis-planner/
+1. Verify it works: http://www.brigger.com/navigation-planner/
 2. Enable HTTPS:
    ```bash
    ssh root@95.217.222.205 "certbot --nginx -d brigger.com -d www.brigger.com"
