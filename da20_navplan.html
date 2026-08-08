@@ -269,6 +269,11 @@ function applyAcftDefaults(){
       if(name){state.hdr.pilot=name;changed=true;}
     }catch(e){}
   }
+  if(!String(state.hdr.date||'').trim()){
+    const d=new Date();
+    state.hdr.date=d.getDate()+'.'+(d.getMonth()+1)+'.'+d.getFullYear();
+    changed=true;
+  }
   return changed;
 }
 if(applyAcftDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty
