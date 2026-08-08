@@ -30,6 +30,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .stat-v{font-size:20px;font-weight:700;color:var(--tx);letter-spacing:-0.02em;}
 .tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
 .tbl th{background:var(--bg-sec);font-size:10.5px;font-weight:600;color:var(--tx2);padding:8px 10px;border:0.5px solid var(--bd);text-align:left;text-transform:uppercase;letter-spacing:0.03em;white-space:nowrap;}
+.tbl tr.grp td{background:var(--bg-sec);font-size:10.5px;font-weight:700;color:var(--tx2);padding:6px 10px;border:0.5px solid var(--bd);text-transform:uppercase;letter-spacing:0.05em;}
 .tbl td{padding:8px 10px;border:0.5px solid var(--bd);vertical-align:top;}
 .tbl tbody tr{cursor:pointer;transition:background 0.12s;}
 .tbl tbody tr:hover{background:var(--bg-sec);}
@@ -304,16 +305,31 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       body.innerHTML=`<tr><td colspan="5" class="empty">${filterUserId!=null?'No plans for this user.':'No saved plans yet.'}</td></tr>`;
       return;
     }
-    body.innerHTML=list.map(p=>{
-      const full=`${p.user_first_name||''} ${p.user_last_name||''}`.trim()||'—';
-      return `<tr data-uid="${p.user_id}">
-        <td><strong>${esc(p.name)}</strong></td>
-        <td>${esc(full)}</td>
-        <td class="muted">${esc(p.user_email)}</td>
-        <td class="muted">${esc(fmtDate(p.updated_at))}</td>
-        <td class="action"><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
-      </tr>`;
-    }).join('');
+    // Group by aircraft — the aircraft selected in the nav dropdown first.
+    const AC_NAMES={velis:'Velis Electro',da20:'Diamond DA20-C1',std:'Standard Aircraft'};
+    let activeId='velis';
+    try{activeId=localStorage.getItem('velis_aircraft')||'velis';}catch(e){}
+    const order=[activeId,...Object.keys(AC_NAMES).filter(k=>k!==activeId)];
+    const groups=new Map();
+    list.forEach(p=>{
+      const k=p.aircraft||'velis';
+      if(!groups.has(k)) groups.set(k,[]);
+      groups.get(k).push(p);
+    });
+    const keys=[...order.filter(k=>groups.has(k)),...[...groups.keys()].filter(k=>!order.includes(k))];
+    body.innerHTML=keys.map(k=>
+      `<tr class="grp"><td colspan="5">${esc(AC_NAMES[k]||k)}</td></tr>`+
+      groups.get(k).map(p=>{
+        const full=`${p.user_first_name||''} ${p.user_last_name||''}`.trim()||'—';
+        return `<tr data-uid="${p.user_id}">
+          <td><strong>${esc(p.name)}</strong></td>
+          <td>${esc(full)}</td>
+          <td class="muted">${esc(p.user_email)}</td>
+          <td class="muted">${esc(fmtDate(p.updated_at))}</td>
+          <td class="action"><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
+        </tr>`;
+      }).join('')
+    ).join('');
   }
 
   function updateStats(){
@@ -403,6 +419,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=25" defer></script>
+<script src="plan_sync.js?v=26" defer></script>
 </body>
 </html>

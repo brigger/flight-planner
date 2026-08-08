@@ -127,6 +127,31 @@ def conn():
     )
 
 
+def _backfill_plan_aircraft(cur):
+    # One-time: tag pre-column plans with their aircraft. The frontend writes
+    # the plan's id/name into the owning aircraft's NAV-plan state inside the
+    # bundle, so whichever state matches identifies the aircraft.
+    keymap = {"velis_navplan_state": "velis",
+              "velis_da20_navplan_state": "da20",
+              "velis_std_navplan_state": "std"}
+    cur.execute("SELECT id, name, plan_json FROM flight_plans WHERE aircraft IS NULL")
+    for pid, name, blob in cur.fetchall():
+        ac = "velis"
+        try:
+            ls = (json.loads(blob) or {}).get("localStorage") or {}
+            for key, acid in keymap.items():
+                raw = ls.get(key)
+                if not raw:
+                    continue
+                meta = (json.loads(raw) or {}).get("meta") or {}
+                if meta.get("id") == pid or (meta.get("name") and meta.get("name") == name):
+                    ac = acid
+                    break
+        except Exception:
+            pass
+        cur.execute("UPDATE flight_plans SET aircraft = %s WHERE id = %s", (ac, pid))
+
+
 def bootstrap():
     # Runs once per gunicorn worker at import time. Up to 60s of retries
     # covers the cold-start case where MariaDB hasn't finished its own
@@ -156,6 +181,7 @@ def bootstrap():
                      ("Emmen", "118.005"), ("Zürich Info", "124.700"),
                      ("Meiringen TWR", "130.155"), ("Meiringen Info", "135.480")],
                 )
+            _backfill_plan_aircraft(cur)
             cur.close()
             c.close()
             return
@@ -627,8 +653,8 @@ def ping():
 def list_plans():
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, updated_at FROM flight_plans "
-        "WHERE user_id = %s ORDER BY updated_at DESC",
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at "
+        "FROM flight_plans WHERE user_id = %s ORDER BY updated_at DESC",
         (request.user["id"],),
     )
     rows = cur.fetchall()
@@ -643,8 +669,8 @@ def list_plans():
 def get_plan(pid):
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, updated_at, plan_json FROM flight_plans "
-        "WHERE id = %s AND user_id = %s",
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, plan_json "
+        "FROM flight_plans WHERE id = %s AND user_id = %s",
         (pid, request.user["id"]),
     )
     row = cur.fetchone()
@@ -664,11 +690,12 @@ def create_plan():
     if not name:
         abort(400, "name required")
     plan_json = json.dumps(body.get("plan_json") or {})
+    aircraft = (str(body.get("aircraft") or "velis").strip() or "velis")[:20]
     c = conn(); cur = c.cursor()
     try:
         cur.execute(
-            "INSERT INTO flight_plans (user_id, name, plan_json) VALUES (%s, %s, %s)",
-            (request.user["id"], name, plan_json),
+            "INSERT INTO flight_plans (user_id, name, aircraft, plan_json) VALUES (%s, %s, %s, %s)",
+            (request.user["id"], name, aircraft, plan_json),
         )
         pid = cur.lastrowid
     except mysql.connector.IntegrityError as e:
@@ -686,19 +713,20 @@ def update_plan(pid):
     body = request.get_json(force=True) or {}
     plan_json = json.dumps(body.get("plan_json") or {})
     name = (body.get("name") or "").strip() or None
+    aircraft = str(body.get("aircraft") or "").strip()[:20] or None
     c = conn(); cur = c.cursor()
     try:
         if name:
             cur.execute(
-                "UPDATE flight_plans SET name = %s, plan_json = %s "
+                "UPDATE flight_plans SET name = %s, aircraft = COALESCE(%s, aircraft), plan_json = %s "
                 "WHERE id = %s AND user_id = %s",
-                (name, plan_json, pid, request.user["id"]),
+                (name, aircraft, plan_json, pid, request.user["id"]),
             )
         else:
             cur.execute(
-                "UPDATE flight_plans SET plan_json = %s "
+                "UPDATE flight_plans SET aircraft = COALESCE(%s, aircraft), plan_json = %s "
                 "WHERE id = %s AND user_id = %s",
-                (plan_json, pid, request.user["id"]),
+                (aircraft, plan_json, pid, request.user["id"]),
             )
         ok = cur.rowcount > 0
     except mysql.connector.IntegrityError as e:
@@ -839,7 +867,7 @@ def admin_delete_plan(pid):
 def admin_list_plans():
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT p.id, p.name, p.updated_at, p.user_id, "
+        "SELECT p.id, p.name, COALESCE(p.aircraft,'velis') AS aircraft, p.updated_at, p.user_id, "
         "       u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name "
         "FROM flight_plans p JOIN users u ON u.id = p.user_id "
         "ORDER BY p.updated_at DESC"

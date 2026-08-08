@@ -169,6 +169,8 @@ window.velisWp = (function(){
 .auth-ok .link{background:none;border:none;padding:0;color:var(--blue,#185FA5);cursor:pointer;font:inherit;text-decoration:underline;}
 
 .plan-list{display:flex;flex-direction:column;gap:2px;margin:4px 0;}
+.plan-group-h{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--tx2,#6b6660);padding:10px 6px 4px;border-bottom:1px solid var(--bd,#e2ddd6);margin-bottom:2px;}
+.plan-group-h:first-child{padding-top:2px;}
 .plan-li{display:flex;align-items:center;justify-content:space-between;padding:12px 10px;border-radius:6px;cursor:pointer;font-size:13px;gap:12px;min-height:44px;}
 .plan-li:hover{background:var(--bg-sec,#f5f4f1);}
 .plan-li .pn{font-weight:600;color:var(--tx,#1a1a1a);}
@@ -621,7 +623,7 @@ window.velisWp = (function(){
     const meta=currentMeta();
     if(!meta.id) return doSaveAs();
     try{
-      await api(`/plans/${meta.id}`,{method:'PUT',body:JSON.stringify({plan_json:collectBundle()})});
+      await api(`/plans/${meta.id}`,{method:'PUT',body:JSON.stringify({plan_json:collectBundle(),aircraft:activeAircraft().id})});
       markBundleSaved();
       _syncDbg('doSave PUT ok → dispatching after-save');
       document.dispatchEvent(new CustomEvent('velis:after-save'));
@@ -642,7 +644,7 @@ window.velisWp = (function(){
     if(!name||!name.trim()) return;
     const bundle=collectBundle();
     try{
-      const res=await api('/plans',{method:'POST',body:JSON.stringify({name:name.trim(),plan_json:bundle})});
+      const res=await api('/plans',{method:'POST',body:JSON.stringify({name:name.trim(),plan_json:bundle,aircraft:activeAircraft().id})});
       persistMeta({id:res.id,name:res.name});
       markBundleSaved();
       _syncDbg('doSaveAs POST ok → dispatching after-save');
@@ -668,13 +670,28 @@ window.velisWp = (function(){
         listEl.innerHTML='<div class="plan-empty">No saved plans yet.</div>';
         return;
       }
-      listEl.innerHTML=plans.map(p=>{
-        const when=new Date(p.updated_at).toLocaleString();
-        return `<div class="plan-li" data-id="${p.id}">
-          <span><span class="pn">${esc(p.name)}</span><span class="pd">${esc(when)}</span></span>
-          <button type="button" class="del" data-del="${p.id}" title="Delete">×</button>
-        </div>`;
-      }).join('');
+      // Group by aircraft — the aircraft selected in the dropdown first, the
+      // rest in selector order, unknown ids (future aircraft) last.
+      const activeId=activeAircraft().id;
+      const order=[activeId,...AIRCRAFT.map(a=>a.id).filter(id=>id!==activeId)];
+      const groups=new Map();
+      plans.forEach(p=>{
+        const k=p.aircraft||'velis';
+        if(!groups.has(k)) groups.set(k,[]);
+        groups.get(k).push(p);
+      });
+      const keys=[...order.filter(k=>groups.has(k)),...[...groups.keys()].filter(k=>!order.includes(k))];
+      const acName=id=>{const a=AIRCRAFT.find(x=>x.id===id);return a?a.name:id;};
+      listEl.innerHTML=keys.map(k=>
+        `<div class="plan-group-h">${esc(acName(k))}</div>`+
+        groups.get(k).map(p=>{
+          const when=new Date(p.updated_at).toLocaleString();
+          return `<div class="plan-li" data-id="${p.id}">
+            <span><span class="pn">${esc(p.name)}</span><span class="pd">${esc(when)}</span></span>
+            <button type="button" class="del" data-del="${p.id}" title="Delete">×</button>
+          </div>`;
+        }).join('')
+      ).join('');
     }catch(e){
       if(e.status===401){closeLoadModal();await handle401();return;}
       listEl.innerHTML=`<div class="plan-empty">Could not list plans: ${esc(e.message)}</div>`;
@@ -699,12 +716,13 @@ window.velisWp = (function(){
     }catch(e){return '';}
   }
 
-  function persistMeta(meta){
+  function persistMeta(meta,navKey){
     try{
-      const raw=localStorage.getItem(navStateKey());
+      const key=navKey||navStateKey();
+      const raw=localStorage.getItem(key);
       const s=raw?JSON.parse(raw):{};
       s.meta={id:meta.id||null,name:meta.name||'',dirty:false};
-      safeSetItem(navStateKey(),JSON.stringify(s));
+      safeSetItem(key,JSON.stringify(s));
     }catch(e){}
   }
 
@@ -870,9 +888,13 @@ window.velisWp = (function(){
       try{
         const p=await api(`/plans/${pid}`);
         applyBundle(p.plan_json);
-        persistMeta({id:p.id,name:p.name});
+        // Meta belongs to the plan's aircraft, not the active one.
+        const planAc=AIRCRAFT.find(a=>a.id===p.aircraft)||activeAircraft();
+        persistMeta({id:p.id,name:p.name},planAc.navKey);
         markBundleSaved();
         closeLoadModal();
+        // Loaded a plan for another aircraft → switch to it so it's on screen.
+        if(planAc.id!==activeAircraft().id) switchAircraft(planAc.id);
       }catch(e){
         if(e.status===401){closeLoadModal();await handle401();return;}
         alert('Load failed: '+e.message);
