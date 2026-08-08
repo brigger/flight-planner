@@ -16,14 +16,14 @@ All pages `fetch('velis_electro_poh.json')`, so they must be served over HTTP (n
 
 ## Deployment
 
-Static site — VPS runs Nginx serving `/var/www/navigation-planner/`:
+Static site — VPS runs Nginx serving `/var/www/flight-planner/`:
 
 ```bash
 git push
-ssh root@95.217.222.205 "cd /var/www/navigation-planner && git pull"
+ssh root@95.217.222.205 "cd /var/www/flight-planner && git pull"
 ```
 
-Backend — Docker Compose service `flightplanner` on the same VPS (`/opt/docker/docker-compose.yml`), listens on `127.0.0.1:8003`, reverse-proxied by Nginx at `/navigation-planner/api/`. Rebuild after changing `backend/`: `ssh root@95.217.222.205 "cd /opt/docker/flightplanner-src && git pull && cd /opt/docker && docker compose build flightplanner && docker compose up -d flightplanner"`.
+Backend — Docker Compose service `flightplanner` on the same VPS (`/opt/docker/docker-compose.yml`), listens on `127.0.0.1:8003`, reverse-proxied by Nginx at `/flight-planner/api/`. Rebuild after changing `backend/`: `ssh root@95.217.222.205 "cd /opt/docker/flightplanner-src && git pull && cd /opt/docker && docker compose build flightplanner && docker compose up -d flightplanner"`.
 
 ## Architecture
 

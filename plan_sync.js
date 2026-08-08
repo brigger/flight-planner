@@ -39,7 +39,7 @@ window.velisWp = (function(){
 (function(){
   "use strict";
 
-  const API_BASE       = (typeof window!=='undefined'&&typeof window.VELIS_API_BASE==='string') ? window.VELIS_API_BASE : '/navigation-planner/api';
+  const API_BASE       = (typeof window!=='undefined'&&typeof window.VELIS_API_BASE==='string') ? window.VELIS_API_BASE : '/flight-planner/api';
   const USER_KEY       = 'velis_user';                 // cached {id,email,first_name,last_name}
   // Per-aircraft NAV Plan state key. Velis and DA20 keep separate plans
   // (velis_navplan_state vs velis_da20_navplan_state), so the key is resolved
