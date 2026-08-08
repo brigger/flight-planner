@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Diamond DA20-C1 — NAV Plan</title>
+<title>Standard Aircraft — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="navplan.css?v=5">
@@ -157,19 +157,6 @@
         <div class="fuel-note" id="fuel-note"></div>
       </div>
 
-      <!-- ═══ Takeoff + Landing mini pictures ═══ -->
-      <div class="toldg" id="toldg-section">
-        <div class="toldg-card">
-          <div class="toldg-head"><span class="toldg-title">Takeoff</span><span class="toldg-cond" id="toldg-cond-to"></span></div>
-          <svg id="nav-svg-to" class="toldg-svg" viewBox="0 0 700 160"></svg>
-          <div class="toldg-nums"><span>To clear obstacle<b id="toldg-to-ob">—</b></span></div>
-        </div>
-        <div class="toldg-card">
-          <div class="toldg-head"><span class="toldg-title">Landing</span><span class="toldg-cond" id="toldg-cond-ld"></span></div>
-          <svg id="nav-svg-ld" class="toldg-svg" viewBox="0 0 700 160"></svg>
-          <div class="toldg-nums"><span>Over 50 ft<b id="toldg-ld-ob">—</b></span><span>Roll<b id="toldg-ld-gr">—</b></span></div>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -214,7 +201,7 @@
    NAV Plan — state, render, compute, persist
    ═════════════════════════════════════════════════════════════════════ */
 
-const STATE_KEY='velis_da20_navplan_state';
+const STATE_KEY='velis_std_navplan_state';
 const EMPTY_WP=()=>({freq:'',ident:'',wp:'',hdg:'',dist:'',alt:'',altTrend:'',eet:'',ato:'',wind:'',freqR:'',remark:''});
 const TREND_NEXT={'':'up',up:'down',down:''};
 const TREND_CHAR={'':'',up:'↗',down:'↘'};
@@ -256,15 +243,6 @@ function migrateHdr(oldHdr){
 
 let state=loadState();
 
-// Aircraft identity — pre-filled whenever the pilot hasn't typed one.
-function applyAcftDefaults(){
-  let changed=false;
-  if(!String(state.hdr.ident||'').trim()){state.hdr.ident='HB-SGK';changed=true;}
-  if(!String(state.hdr.type||'').trim()){state.hdr.type='DA20';changed=true;}
-  return changed;
-}
-if(applyAcftDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty
-
 function loadState(){
   try{
     const raw=localStorage.getItem(STATE_KEY);
@@ -297,7 +275,7 @@ function saveLocal(){
   }catch(e){}
   localStorage.setItem(STATE_KEY,JSON.stringify(state));
 }
-function saveState(){if(!state.meta)state.meta={id:null,name:'',dirty:false};state.meta.dirty=true;saveLocal();window.velisPlan&&window.velisPlan.markDirty();scheduleRpPush();}
+function saveState(){if(!state.meta)state.meta={id:null,name:'',dirty:false};state.meta.dirty=true;saveLocal();window.velisPlan&&window.velisPlan.markDirty();}
 
 /* ─── Parsers / formatters ─── */
 const parseNum=s=>{const v=parseFloat(String(s).replace(',','.'));return isFinite(v)?v:NaN;};
@@ -715,13 +693,11 @@ E.tripT.value=state.end.tripT||'';
 E.altT.value=state.end.altT||'';
 E.extraT.value=state.end.extraT||'';
 
-// Fuel-only: static labels + always-visible TO/LDG pictures (DA20 is a piston aircraft)
+// Fuel-only: static labels
 function applyModeUI(){
   const tbl=document.getElementById('fuel-table');
   tbl.classList.remove('mode-electric');
   tbl.classList.add('mode-fuel');
-  const toldg=document.getElementById('toldg-section');
-  if(toldg) toldg.style.display='';
   E.ffLbl.textContent='Fuel flow';
   E.ffUnit.textContent='(L/h)';
   E.tfLbl.textContent='Total fuel';
@@ -765,7 +741,6 @@ function computeEndurance(){
 // unsaved-changes dot on a freshly opened or loaded plan.
 function seedEnduranceDefaults(){
   let seeded=false;
-  if(!state.end.ff){ state.end.ff='26'; seeded=true; }
   if(!state.end.altT){ state.end.altT='0:15'; seeded=true; }
   if(!state.end.extraT){ state.end.extraT='0:30'; seeded=true; }
   if(seeded){
@@ -820,7 +795,6 @@ E.tripT.addEventListener('input',()=>{
 document.getElementById('btn-clear').addEventListener('click',()=>{
   if(!confirm('Clear the NAV plan form? This cannot be undone.')) return;
   state=DEFAULT_STATE();
-  applyAcftDefaults();
   saveLocal();
   window.velisPlan&&window.velisPlan.markDirty();
   // Rehydrate all inputs from default state
@@ -856,19 +830,13 @@ document.querySelectorAll('#view-seg button').forEach(btn=>{
    localStorage at the right times.
    ═════════════════════════════════════════════════════════════════════ */
 
-// Fired just before plan_sync.js snapshots localStorage into the bundle —
-// flush our state and any pending Route-Planner push so the bundle holds both
-// pages in their synced form.
-document.addEventListener('velis:before-save',()=>{
-  saveLocal();
-  if(_rpPushTimer){clearTimeout(_rpPushTimer);_rpPushTimer=null;pushNavToRoutePlanner();}
-});
+// Fired just before plan_sync.js snapshots localStorage into the bundle.
+document.addEventListener('velis:before-save',()=>{saveLocal();});
 
 // Fired after plan_sync.js writes the loaded bundle's localStorage keys.
 document.addEventListener('velis:after-load',()=>{
   state=loadState();
   if(applyLspgDefaults()) saveLocal();
-  if(applyAcftDefaults()) saveLocal();
   if(state.meta) state.meta.dirty=false;
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value=state.comments||'';
@@ -882,8 +850,8 @@ document.addEventListener('velis:after-load',()=>{
   refreshEndurance();
 });
 
-// Restored from the back/forward cache — the Route Planner may have pushed
-// route changes while this page was away.
+// Restored from the back/forward cache — a plan load elsewhere may have
+// replaced the stored state while this page was away.
 window.addEventListener('pageshow',e=>{
   if(!e.persisted) return;
   state=loadState();
@@ -971,55 +939,6 @@ function wpFromSkyDemon(w,prevAlt){
   };
 }
 
-// Reconstruct the canonical name a NAV-Plan row would expose to imports —
-// "ICAO Name" when both ident + wp are filled, otherwise whichever is set.
-// The shared waypoint name is the WAYPOINT column only — the FREQ column's
-// lower input (ident) belongs to the pilot (often holds a freq label) and
-// never becomes part of the name shown in the Route Planner.
-function navRowName(r){
-  const wp=(r&&r.wp||'').trim();
-  if(wp) return wp;
-  const id=(r&&r.ident||'').trim();
-  return /\d+\.\d+/.test(id) ? '' : id;
-}
-// Same shape + same names? Then importing from Route Planner should only
-// refresh the cells that the planner actually owns (alt + dist + altTrend),
-// preserving frequencies, comments, ATO, etc. that the pilot has typed in.
-function rpRouteMatchesCurrent(parsed){
-  if(!Array.isArray(parsed)||parsed.length!==state.route.length) return false;
-  for(let i=0;i<parsed.length;i++){
-    const a=(parsed[i].name||'').trim().toLowerCase();
-    const b=navRowName(state.route[i]).toLowerCase();
-    if(a!==b) return false;
-  }
-  return true;
-}
-function applyRpImport(parsed){
-  if(!parsed||parsed.length<2){
-    alert('Could not find at least 2 waypoints in the Route Planner.');
-    return false;
-  }
-  if(rpRouteMatchesCurrent(parsed)){
-    // In-place refresh — only the fields the Route Planner owns.
-    let prevAlt=null, changed=false;
-    parsed.forEach((w,i)=>{
-      const {leg,curAlt}=wpFromSkyDemon(w,prevAlt);
-      const r=state.route[i];
-      if(r.alt!==leg.alt){r.alt=leg.alt;changed=true;}
-      if(r.altTrend!==leg.altTrend){r.altTrend=leg.altTrend;changed=true;}
-      if(r.dist!==leg.dist){r.dist=leg.dist;changed=true;}
-      prevAlt=curAlt;
-    });
-    if(changed){
-      state.meta = {...(state.meta||{id:null,name:'',dirty:false}), dirty:true};
-      saveLocal();
-      window.velisPlan&&window.velisPlan.markDirty();
-      renderWP();refreshTotals();
-    }
-    return true;
-  }
-  return applyImport(parsed);
-}
 
 function applyImport(parsed){
   if(!parsed||parsed.length<2){
@@ -1074,82 +993,6 @@ function refreshImportAuthUI(){
   importAuthMsg.hidden=authed;
 }
 
-// Build SkyDemon-shaped rows from the Route Planner's localStorage state.
-function readRoutePlannerState(){
-  const raw=localStorage.getItem('velis_da20_route_state');
-  if(!raw) return null;
-  try{return JSON.parse(raw);}catch(e){return null;}
-}
-function rpStateToParsed(s){
-  if(!s||!Array.isArray(s.legs)||s.legs.length===0) return null;
-  const rows=[];
-  // Departure: alt comes via elev (no leg precedes DEP, so data is null).
-  // Names are passed through verbatim — substituting placeholders like
-  // "Departure"/"Leg 2" would break the equality check against navRowName(),
-  // which can legitimately return '' for an unnamed waypoint.
-  rows.push({
-    name:s.depName||'',
-    elev:s.depAlt?String(s.depAlt)+' ft':'',
-    data:null
-  });
-  s.legs.forEach((leg)=>{
-    rows.push({
-      name:leg.name||'',
-      elev:'',
-      data:{msa:'',level:String(leg.alt||''),tas:'',trk:'',wind:'',hdg:'',gs:'',dist:String(leg.dist||''),eet:''}
-    });
-  });
-  rows.push({
-    name:s.arrName||'',
-    elev:'',
-    data:{msa:'',level:String(s.arrAlt||''),tas:'',trk:'',wind:'',hdg:'',gs:'',dist:String(s.arrDist||''),eet:''}
-  });
-  return rows;
-}
-/* ═══ NAV → Route Planner push (always-on, debounced via scheduleRpPush) ═══
-   The Route Planner stores velis_da20_route_state as
-     {approach, legs:[{alt,dist,name}], soh, soc0, res, oat, cruiseKw,
-      depAlt, arrAlt, arrDist, depName, arrName, perfAdj}
-   pushNavToRoutePlanner() writes the route-shape fields from NAV's current
-   state without touching the planner's slider settings. */
-function pushNavToRoutePlanner(){
-  saveLocal();
-  const route=(state&&state.route)||[];
-  if(route.length<3) return false;            // RP needs at least 1 intermediate leg
-  const parseAlt=window.velisWp.parseAlt;
-  const parseDist=window.velisWp.parseDist;
-  const cl=(n,lo,hi,fb)=>{const v=+n;return isFinite(v)?Math.max(lo,Math.min(hi,v)):fb;};
-  let rp={};
-  try{const raw=localStorage.getItem('velis_da20_route_state'); if(raw) rp=JSON.parse(raw)||{};}catch(e){rp={};}
-  const dep=route[0], arr=route[route.length-1];
-  const depAlt=parseAlt(dep.alt), arrAlt=parseAlt(arr.alt), arrDist=parseDist(arr.dist);
-  rp.depName=navRowName(dep);
-  rp.arrName=navRowName(arr);
-  if(depAlt!=null) rp.depAlt=cl(depAlt,0,8000,rp.depAlt!=null?+rp.depAlt:0);
-  if(arrAlt!=null) rp.arrAlt=cl(arrAlt,0,8000,rp.arrAlt!=null?+rp.arrAlt:0);
-  if(arrDist!=null) rp.arrDist=cl(arrDist,1,120,rp.arrDist!=null?+rp.arrDist:20);
-  const legs=[];
-  for(let i=1;i<route.length-1;i++){
-    const r=route[i];
-    const a=parseAlt(r.alt), d=parseDist(r.dist);
-    legs.push({
-      alt: a!=null ? cl(a,500,15000,3000) : 3000,
-      dist: d!=null ? cl(d,1,120,20) : 20,
-      name: navRowName(r)
-    });
-  }
-  rp.legs=legs;
-  localStorage.setItem('velis_da20_route_state',JSON.stringify(rp));
-  window.velisPlan&&window.velisPlan.markDirty();
-  return true;
-}
-// Debounced so typing in a cell doesn't rewrite velis_da20_route_state per
-// keystroke. velis:before-save flushes a pending push before bundling.
-let _rpPushTimer=null;
-function scheduleRpPush(){
-  clearTimeout(_rpPushTimer);
-  _rpPushTimer=setTimeout(()=>{_rpPushTimer=null;pushNavToRoutePlanner();},300);
-}
 function setImportMode(mode){
   importMode=mode;
   document.querySelectorAll('[data-import-mode]').forEach(b=>{
@@ -1249,7 +1092,7 @@ importBtn.addEventListener('click',async()=>{
 });
 
 /* ═══ Init ═══ */
-applyModeUI();            // static fuel-mode labels + TO/LDG visibility (set once)
+applyModeUI();            // static fuel-mode labels (set once)
 seedEnduranceDefaults();  // one-time FF/alt/extra defaults + initial trip auto-fill
 renderFreqDatalist();
 fetchFreqDir();
@@ -1260,34 +1103,7 @@ refreshEndurance();
 // syncTripFromRoute/refreshEndurance are read-only; plan_sync.js owns the dirty dot.
 window.addEventListener('pageshow',()=>{ syncTripFromRoute(); refreshEndurance(); });
 
-/* ═════════════════════════════════════════════════════════════════════
-   TAKEOFF / LANDING mini pictures — uses window.da20TakeoffCalc
-   ═════════════════════════════════════════════════════════════════════ */
-async function renderToLdg(){
-  if(!window.da20TakeoffCalc) return;
-  try{
-    const POH=await window.da20TakeoffCalc.loadPOH();
-    const s=window.da20TakeoffCalc.readState();
-    const to=window.da20TakeoffCalc.computeTakeoff(POH,s);
-    const ld=window.da20TakeoffCalc.computeLanding(POH,s);
-    const condTo=`${s.pa.toLocaleString()} ft · ${s.oat>=0?'+':''}${s.oat}°C · ${s.weight} kg · ${s.hw===0?'calm':(s.hw>0?s.hw+' HW':Math.abs(s.hw)+' TW')} · ${s.oh} m obst`;
-    const condLd=`${s.pa.toLocaleString()} ft MSL · max wt · 55 KIAS`;
-    document.getElementById('toldg-cond-to').textContent=condTo;
-    document.getElementById('toldg-cond-ld').textContent=condLd;
-    document.getElementById('toldg-to-ob').textContent=' '+Math.round(to.dist)+' m';
-    document.getElementById('toldg-ld-gr').textContent=' '+Math.round(ld.roll)+' m';
-    document.getElementById('toldg-ld-ob').textContent=' '+Math.round(ld.total)+' m';
-    window.da20TakeoffCalc.drawTakeoff(document.getElementById('nav-svg-to'),to.dist,to.oh,{W:700,H:160,fontSize:10});
-    window.da20TakeoffCalc.drawLanding(document.getElementById('nav-svg-ld'),ld.total,ld.roll,{W:700,H:160,fontSize:10});
-  }catch(e){/* POH fetch can fail when served from file://; ignore silently */}
-}
-// takeoff_calc.js is deferred; wait until DOM+deferred scripts have loaded
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',renderToLdg);
-else renderToLdg();
-window.addEventListener('pageshow',renderToLdg);
-document.addEventListener('velis:after-load',renderToLdg);
 </script>
-<script src="da20_takeoff_calc.js" defer></script>
 <script src="plan_sync.js?v=23" defer></script>
 
 </body>

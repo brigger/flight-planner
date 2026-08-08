@@ -71,6 +71,10 @@ window.velisWp = (function(){
       { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
       { type:'perf',    href:'da20_performance.html',  label:'Performance'       },
     ]},
+    // No POH data → NAV Plan only, no performance calculators.
+    { id:'std', name:'Standard Aircraft', navKey:'velis_std_navplan_state', tabs:[
+      { type:'navplan', href:'std_navplan.html',       label:'NAV Plan'          },
+    ]},
   ];
   // Shared across all aircraft (same page regardless of selection).
   const SHARED_TABS = [

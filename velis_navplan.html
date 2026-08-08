@@ -262,6 +262,15 @@ function migrateHdr(oldHdr){
 
 let state=loadState();
 
+// Aircraft identity — pre-filled whenever the pilot hasn't typed one.
+function applyAcftDefaults(){
+  let changed=false;
+  if(!String(state.hdr.ident||'').trim()){state.hdr.ident='HB-SYJ';changed=true;}
+  if(!String(state.hdr.type||'').trim()){state.hdr.type='PIVE';changed=true;}
+  return changed;
+}
+if(applyAcftDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty
+
 function loadState(){
   try{
     const raw=localStorage.getItem(STATE_KEY);
@@ -872,6 +881,7 @@ function refreshEndurance(){
 document.getElementById('btn-clear').addEventListener('click',()=>{
   if(!confirm('Clear the NAV plan form? This cannot be undone.')) return;
   state=DEFAULT_STATE();
+  applyAcftDefaults();
   saveLocal();
   window.velisPlan&&window.velisPlan.markDirty();
   // Rehydrate all inputs from default state
@@ -919,6 +929,7 @@ document.addEventListener('velis:before-save',()=>{
 document.addEventListener('velis:after-load',()=>{
   state=loadState();
   if(applyLspgDefaults()) saveLocal();
+  if(applyAcftDefaults()) saveLocal();
   if(state.meta) state.meta.dirty=false;
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value=state.comments||'';
@@ -1335,7 +1346,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=22" defer></script>
+<script src="plan_sync.js?v=23" defer></script>
 
 </body>
 </html>
