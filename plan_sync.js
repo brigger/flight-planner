@@ -58,21 +58,26 @@ window.velisWp = (function(){
   // Single source of truth for the aircraft selector and per-aircraft menus.
   // Each aircraft owns a set of tabs keyed by `type` so switching aircraft can
   // stay on the same tab type when the target has it. Admin tabs have admin:true.
+  // clearKeys: what "New" wipes — the NAV plan, its Route Planner mirror and
+  // any derived values; pages rebuild their defaults when the key is missing.
   const AIRCRAFT = [
-    { id:'velis', name:'Velis Electro', navKey:'velis_navplan_state', tabs:[
+    { id:'velis', name:'Velis Electro', navKey:'velis_navplan_state',
+      clearKeys:['velis_navplan_state','velis_route_state','velis_wp_soc'], tabs:[
       { type:'navplan', href:'velis_navplan.html',     label:'NAV Plan'          },
       { type:'route',   href:'index.html',             label:'Route Planner'     },
       { type:'takeoff', href:'velis_takeoff.html',     label:'Takeoff & Landing' },
       { type:'perf',    href:'velis_performance.html', label:'Performance'       },
     ]},
-    { id:'da20', name:'Diamond DA20-C1', navKey:'velis_da20_navplan_state', tabs:[
+    { id:'da20', name:'Diamond DA20-C1', navKey:'velis_da20_navplan_state',
+      clearKeys:['velis_da20_navplan_state','velis_da20_route_state'], tabs:[
       { type:'navplan', href:'da20_navplan.html',      label:'NAV Plan'          },
       { type:'route',   href:'da20_index.html',        label:'Route Planner'     },
       { type:'takeoff', href:'da20_takeoff.html',      label:'Takeoff & Landing' },
       { type:'perf',    href:'da20_performance.html',  label:'Performance'       },
     ]},
     // No POH data → NAV Plan only, no performance calculators.
-    { id:'std', name:'Standard Aircraft', navKey:'velis_std_navplan_state', tabs:[
+    { id:'std', name:'Standard Aircraft', navKey:'velis_std_navplan_state',
+      clearKeys:['velis_std_navplan_state'], tabs:[
       { type:'navplan', href:'std_navplan.html',       label:'NAV Plan'          },
     ]},
   ];
@@ -194,6 +199,7 @@ window.velisWp = (function(){
 <div class="plan-menu" id="plan-menu" role="menu">
   <div class="who" id="plan-menu-who" hidden>Signed in<span class="em" id="plan-menu-who-em"></span></div>
   <div class="sep" id="plan-menu-who-sep" hidden></div>
+  <button type="button" data-act="new">New</button>
   <button type="button" data-act="save">Save<span class="kbd">⌘S</span></button>
   <button type="button" data-act="save-as">Save as…</button>
   <button type="button" data-act="load">Load…</button>
@@ -538,6 +544,25 @@ window.velisWp = (function(){
     await refreshUser();
     if(!currentUser) openAuthModal();
   }
+  // "New" — start an empty, unsaved plan for the active aircraft: drop its
+  // stored state (pages rebuild their defaults when the key is missing) and
+  // land on the NAV Plan. Already there → rehydrate in place via after-load;
+  // on any other page → navigate, so a fresh boot picks up the defaults (the
+  // Route Planner keeps its in-memory route on a missing key, so an in-place
+  // refresh would not clear it there).
+  function doNew(){
+    const ac=activeAircraft();
+    if(!confirm('Start a new, empty NAV plan for '+ac.name+'? Unsaved changes are lost.')) return;
+    (ac.clearKeys||[ac.navKey]).forEach(k=>{ try{localStorage.removeItem(k);}catch(e){} });
+    markBundleSaved();   // a fresh plan starts clean — the dot appears on the first edit
+    const dest=ac.tabs.find(t=>t.type==='navplan')||ac.tabs[0];
+    if(currentPage()===dest.href){
+      document.dispatchEvent(new CustomEvent('velis:after-load',{detail:{bundle:null}}));
+    }else{
+      location.href=dest.href;
+    }
+  }
+
   async function doSave(){
     if(!ensureAuth()) return;
     const meta=currentMeta();
@@ -835,7 +860,8 @@ window.velisWp = (function(){
       if(!btn) return;
       closeMenu();
       const act=btn.dataset.act;
-      if(act==='save') doSave();
+      if(act==='new') doNew();
+      else if(act==='save') doSave();
       else if(act==='save-as') doSaveAs();
       else if(act==='load') doLoad();
       else if(act==='signin') openAuthModal();
@@ -901,7 +927,7 @@ window.velisWp = (function(){
 
   /* ─── Public API ─── */
   window.velisPlan = {
-    save:doSave, saveAs:doSaveAs, load:doLoad,
+    save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew,
     openSettings:openAuthModal,  // legacy alias
     openAuth:openAuthModal, logout:doLogout,
     markDirty:markBundleDirty, markSaved:markBundleSaved,
