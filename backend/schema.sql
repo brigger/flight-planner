@@ -62,8 +62,7 @@ CREATE TABLE IF NOT EXISTS flight_plans (
   CONSTRAINT fk_plan_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Which aircraft a plan belongs to ('velis' | 'da20' | 'std').
--- NULL = pre-column row — bootstrap() backfills it from the bundle content.
--- NB: no semicolons inside comments — bootstrap() splits statements on ';'.
+-- Which aircraft a plan belongs to: velis, da20 or std.
+-- NULL marks a pre-column row that bootstrap() backfills from the bundle.
 ALTER TABLE flight_plans
   ADD COLUMN IF NOT EXISTS aircraft VARCHAR(20) NULL AFTER name;

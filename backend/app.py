@@ -169,6 +169,11 @@ def bootstrap():
             c = conn()
             cur = c.cursor()
             for stmt in sql.split(";"):
+                # Drop comment lines first: a semicolon inside a comment would
+                # otherwise split mid-comment, and a comment-only fragment
+                # executes as an empty statement — both are 1064 errors.
+                stmt = "\n".join(l for l in stmt.splitlines()
+                                 if not l.strip().startswith("--"))
                 if stmt.strip():
                     cur.execute(stmt)
             # Seed the waypoint-frequency directory on first boot only (table
