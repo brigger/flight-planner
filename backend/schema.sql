@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS flight_plans (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Which aircraft a plan belongs to ('velis' | 'da20' | 'std').
--- NULL = pre-column row; bootstrap() backfills it from the bundle content.
+-- NULL = pre-column row — bootstrap() backfills it from the bundle content.
+-- NB: no semicolons inside comments — bootstrap() splits statements on ';'.
 ALTER TABLE flight_plans
   ADD COLUMN IF NOT EXISTS aircraft VARCHAR(20) NULL AFTER name;
