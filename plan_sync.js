@@ -716,6 +716,25 @@ window.velisWp = (function(){
     }catch(e){return '';}
   }
 
+  // Apply a fetched plan {id,name,aircraft,plan_json} to the app — used by the
+  // Load dialog and the Dashboard's Open button. own:false = someone else's
+  // plan (admin) → its id is not adopted, so Save becomes Save-as (a copy).
+  // open:true → always end up on the plan's NAV Plan page, even when the
+  // aircraft was already active.
+  function applyPlanData(p,{own=true,open=false}={}){
+    applyBundle(p.plan_json);
+    // Meta belongs to the plan's aircraft, not the active one.
+    const planAc=AIRCRAFT.find(a=>a.id===p.aircraft)||activeAircraft();
+    persistMeta({id:own?p.id:null,name:p.name},planAc.navKey);
+    markBundleSaved();
+    // Plan for another aircraft → switch to it so it's on screen.
+    if(planAc.id!==activeAircraft().id){switchAircraft(planAc.id);return;}
+    if(open){
+      const dest=planAc.tabs.find(t=>t.type==='navplan')||planAc.tabs[0];
+      if(dest&&dest.href!==currentPage()) location.href=dest.href;
+    }
+  }
+
   function persistMeta(meta,navKey){
     try{
       const key=navKey||navStateKey();
@@ -887,14 +906,8 @@ window.velisWp = (function(){
       const pid=item.dataset.id;
       try{
         const p=await api(`/plans/${pid}`);
-        applyBundle(p.plan_json);
-        // Meta belongs to the plan's aircraft, not the active one.
-        const planAc=AIRCRAFT.find(a=>a.id===p.aircraft)||activeAircraft();
-        persistMeta({id:p.id,name:p.name},planAc.navKey);
-        markBundleSaved();
         closeLoadModal();
-        // Loaded a plan for another aircraft → switch to it so it's on screen.
-        if(planAc.id!==activeAircraft().id) switchAircraft(planAc.id);
+        applyPlanData(p);
       }catch(e){
         if(e.status===401){closeLoadModal();await handle401();return;}
         alert('Load failed: '+e.message);
@@ -1005,7 +1018,7 @@ window.velisWp = (function(){
 
   /* ─── Public API ─── */
   window.velisPlan = {
-    save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew,
+    save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew, applyPlanData,
     openSettings:openAuthModal,  // legacy alias
     openAuth:openAuthModal, logout:doLogout,
     markDirty:markBundleDirty, markSaved:markBundleSaved,

@@ -867,6 +867,24 @@ def admin_delete_plan(pid):
     return {"ok": True}
 
 
+@app.get("/api/admin/plans/<int:pid>")
+@require_admin
+def admin_get_plan(pid):
+    c = conn(); cur = c.cursor(dictionary=True)
+    cur.execute(
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, user_id, plan_json "
+        "FROM flight_plans WHERE id = %s",
+        (pid,),
+    )
+    row = cur.fetchone()
+    cur.close(); c.close()
+    if not row:
+        abort(404)
+    row["updated_at"] = row["updated_at"].isoformat()
+    row["plan_json"]  = json.loads(row["plan_json"])
+    return jsonify(row)
+
+
 @app.get("/api/admin/plans")
 @require_admin
 def admin_list_plans():

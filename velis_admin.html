@@ -50,7 +50,10 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .err{font-size:13px;color:var(--red);background:#FCEBEB;border:0.5px solid #F7C1C1;border-radius:var(--rad-md);padding:10px 14px;}
 .tbl .del-btn{border:none;background:transparent;color:#B08888;cursor:pointer;font-size:16px;line-height:1;padding:4px 8px;border-radius:4px;}
 .tbl .del-btn:hover{color:#791F1F;background:#FCEBEB;}
-.tbl td.action{text-align:right;width:40px;padding:4px 8px;}
+.tbl .open-btn{border:0.5px solid #c0d8f0;background:var(--blue-bg);color:var(--blue);cursor:pointer;font-size:11px;font-weight:600;line-height:1;padding:5px 10px;border-radius:5px;margin-right:4px;vertical-align:middle;}
+.tbl .open-btn:hover{background:var(--blue);color:#fff;}
+.tbl .open-btn:disabled{opacity:0.5;cursor:wait;}
+.tbl td.action{text-align:right;width:100px;padding:4px 8px;white-space:nowrap;}
 /* Waypoint-frequency directory — in-place editable cells */
 #freqs-tbl{max-width:460px;}
 #freqs-tbl tbody tr{cursor:default;}
@@ -184,7 +187,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     return r.json();
   }
 
-  let users=[], plans=[], filterUserId=null, freqs=[];
+  let users=[], plans=[], filterUserId=null, freqs=[], meUser=null;
 
   /* ── waypoint / frequency directory ── */
   function freqErr(msg){
@@ -326,7 +329,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
           <td>${esc(full)}</td>
           <td class="muted">${esc(p.user_email)}</td>
           <td class="muted">${esc(fmtDate(p.updated_at))}</td>
-          <td class="action"><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
+          <td class="action"><button type="button" class="open-btn" data-open="${p.id}" title="Open this plan in the planner">Open</button><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
         </tr>`;
       }).join('')
     ).join('');
@@ -351,6 +354,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
         accessEl.hidden=false;
         return;
       }
+      meUser=me.user;
       document.getElementById('me-email').textContent=me.user.email;
       accessEl.hidden=true;
       mainEl.hidden=false;
@@ -388,6 +392,22 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     filterUserId=null; renderUsers(); renderPlans();
   });
   document.getElementById('plans-body').addEventListener('click',async ev=>{
+    const openBtn=ev.target.closest('[data-open]');
+    if(openBtn){
+      ev.stopPropagation();
+      const pid=+openBtn.dataset.open;
+      openBtn.disabled=true;
+      try{
+        const p=await api(`/admin/plans/${pid}`);
+        // Someone else's plan → don't adopt its id; saving makes a copy.
+        const own=!!(meUser&&p.user_id===meUser.id);
+        window.velisPlan.applyPlanData(p,{own,open:true});
+      }catch(e){
+        alert('Open failed: '+e.message);
+        openBtn.disabled=false;
+      }
+      return;
+    }
     const delBtn=ev.target.closest('[data-del]');
     if(delBtn){
       ev.stopPropagation();
@@ -419,6 +439,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=26" defer></script>
+<script src="plan_sync.js?v=27" defer></script>
 </body>
 </html>
