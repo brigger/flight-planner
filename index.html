@@ -831,11 +831,16 @@ function pushRouteToNavPlan(){
 
   // Same-shape path (names match per position): refresh alt/dist only and
   // leave pilot fields (freq, wind, EET, remark, etc.) untouched.
-  const sameShape = route.length===rpWps.length && rpWps.every((rp,i)=>{
-    const a=window.velisWp.joinName(route[i].ident,route[i].wp).trim().toLowerCase();
-    const b=(rp.name||'').trim().toLowerCase();
-    return a===b;
-  });
+  // Match on the WAYPOINT column only — the FREQ column's lower input (ident)
+  // belongs to the pilot and never takes part in the shared name.
+  const navRowName=r=>{
+    const wp=(r&&r.wp||'').trim();
+    if(wp) return wp;
+    const id=(r&&r.ident||'').trim();
+    return /\d+\.\d+/.test(id) ? '' : id;
+  };
+  const sameShape = route.length===rpWps.length && rpWps.every((rp,i)=>
+    navRowName(route[i]).toLowerCase()===(rp.name||'').trim().toLowerCase());
 
   let prevAlt=null, changed=false;
   if(sameShape){
@@ -865,11 +870,9 @@ function pushRouteToNavPlan(){
   // pilot fields exist on the same-index row (freq/wind/EET/remark/MSA/etc.),
   // and overwrite name/alt/dist/altTrend from RP. Rows that don't exist yet
   // start as empty waypoints.
-  const splitName=window.velisWp.splitName;
   const EMPTY={ident:'',wp:'',alt:'',altTrend:'',freq:'',msa:'',level:'',tas:'',trk:'',wind:'',hdg:'',gs:'',dist:'',eet:'',remark:''};
   const newRoute=rpWps.map((rp,i)=>{
     const existing=route[i]||{};
-    const {ident,wp}=splitName(rp.name||'');
     let trend='';
     const prev=i>0?(rpWps[i-1].alt??null):null;
     if(prev!=null && rp.alt!=null){
@@ -878,7 +881,7 @@ function pushRouteToNavPlan(){
     }
     return {
       ...EMPTY, ...existing,
-      ident, wp,
+      wp:(rp.name||'').trim(),
       alt: rp.alt!=null?String(rp.alt):'',
       altTrend: trend,
       dist: (i>0 && rp.dist!=null) ? String(rp.dist) : (i===0 ? '' : (existing.dist||''))

@@ -1007,14 +1007,14 @@ function wpFromSkyDemon(w,prevAlt){
 
 // Reconstruct the canonical name a NAV-Plan row would expose to imports —
 // "ICAO Name" when both ident + wp are filled, otherwise whichever is set.
-// The FREQ column's lower input is data-f="ident", so pilots often type
-// a frequency (e.g. "128.475") in there. Treat that as a non-ident — use
-// only r.wp — so the name we expose doesn't become "128.475 LSPG".
+// The shared waypoint name is the WAYPOINT column only — the FREQ column's
+// lower input (ident) belongs to the pilot (often holds a freq label) and
+// never becomes part of the name shown in the Route Planner.
 function navRowName(r){
-  const id=(r&&r.ident||'').trim();
   const wp=(r&&r.wp||'').trim();
-  if(/\d+\.\d+/.test(id)) return wp;
-  return window.velisWp.joinName(id, wp);
+  if(wp) return wp;
+  const id=(r&&r.ident||'').trim();
+  return /\d+\.\d+/.test(id) ? '' : id;
 }
 // Same shape + same names? Then importing from Route Planner should only
 // refresh the cells that the planner actually owns (alt + dist + altTrend),
