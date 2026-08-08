@@ -262,11 +262,19 @@ function migrateHdr(oldHdr){
 
 let state=loadState();
 
-// Aircraft identity — pre-filled whenever the pilot hasn't typed one.
+// Aircraft identity + pilot name — pre-filled whenever the fields are empty.
+// The pilot name comes from the signed-in account (cached by plan_sync.js).
 function applyAcftDefaults(){
   let changed=false;
   if(!String(state.hdr.ident||'').trim()){state.hdr.ident='HB-SYJ';changed=true;}
   if(!String(state.hdr.type||'').trim()){state.hdr.type='PIVE';changed=true;}
+  if(!String(state.hdr.pilot||'').trim()){
+    try{
+      const u=JSON.parse(localStorage.getItem('velis_user')||'null');
+      const name=u?((u.first_name||'')+' '+(u.last_name||'')).trim():'';
+      if(name){state.hdr.pilot=name;changed=true;}
+    }catch(e){}
+  }
   return changed;
 }
 if(applyAcftDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty

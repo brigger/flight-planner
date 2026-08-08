@@ -243,6 +243,20 @@ function migrateHdr(oldHdr){
 
 let state=loadState();
 
+// Pilot name — pre-filled from the signed-in account (cached by plan_sync.js)
+// whenever the field is empty. No aircraft identity here: the Standard
+// Aircraft is whatever the pilot flies that day.
+function applyAcftDefaults(){
+  if(String(state.hdr.pilot||'').trim()) return false;
+  try{
+    const u=JSON.parse(localStorage.getItem('velis_user')||'null');
+    const name=u?((u.first_name||'')+' '+(u.last_name||'')).trim():'';
+    if(name){state.hdr.pilot=name;return true;}
+  }catch(e){}
+  return false;
+}
+if(applyAcftDefaults()) saveLocal();   // quiet — opening the page shouldn't flag the plan dirty
+
 function loadState(){
   try{
     const raw=localStorage.getItem(STATE_KEY);
@@ -795,6 +809,7 @@ E.tripT.addEventListener('input',()=>{
 document.getElementById('btn-clear').addEventListener('click',()=>{
   if(!confirm('Clear the NAV plan form? This cannot be undone.')) return;
   state=DEFAULT_STATE();
+  applyAcftDefaults();
   saveLocal();
   window.velisPlan&&window.velisPlan.markDirty();
   // Rehydrate all inputs from default state
@@ -837,6 +852,7 @@ document.addEventListener('velis:before-save',()=>{saveLocal();});
 document.addEventListener('velis:after-load',()=>{
   state=loadState();
   if(applyLspgDefaults()) saveLocal();
+  if(applyAcftDefaults()) saveLocal();
   if(state.meta) state.meta.dirty=false;
   document.querySelectorAll('input[data-h]').forEach(inp=>{inp.value=state.hdr[inp.dataset.h]||'';});
   ta.value=state.comments||'';
