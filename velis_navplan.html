@@ -294,7 +294,7 @@ function saveLocal(){
   }catch(e){}
   localStorage.setItem(STATE_KEY,JSON.stringify(state));
 }
-function saveState(){if(!state.meta)state.meta={id:null,name:'',dirty:false};state.meta.dirty=true;saveLocal();window.velisPlan&&window.velisPlan.markDirty();}
+function saveState(){if(!state.meta)state.meta={id:null,name:'',dirty:false};state.meta.dirty=true;saveLocal();window.velisPlan&&window.velisPlan.markDirty();scheduleRpPush();}
 
 /* ─── Parsers / formatters ─── */
 const parseNum=s=>{const v=parseFloat(String(s).replace(',','.'));return isFinite(v)?v:NaN;};
@@ -899,34 +899,12 @@ document.querySelectorAll('#view-seg button').forEach(btn=>{
    localStorage at the right times.
    ═════════════════════════════════════════════════════════════════════ */
 
-// Fired just before plan_sync.js snapshots localStorage into the bundle.
-document.addEventListener('velis:before-save',()=>{saveLocal();});
-
-// Fired after a successful save — offer to push the freshly-saved NAV route
-// out to the Route Planner (only when the two pages have actually diverged).
-document.addEventListener('velis:after-save',()=>{
-  const _dbg=window.velisSyncDbg||function(m){try{console.log('[sync]',m);}catch(e){}};
-  _dbg('NAV after-save fired (routeLen='+(state&&state.route&&state.route.length)+', rp='+(!!localStorage.getItem('velis_route_state'))+', velisPlan='+(!!window.velisPlan)+')');
-  if(!window.velisPlan||!window.velisPlan.runAutoSync){_dbg('NAV: velisPlan.runAutoSync MISSING');return;}
-  window.velisPlan.runAutoSync({
-    isInSync: navIsInSyncWithRp,
-    onConfirm: pushNavToRoutePlanner,
-    title: 'Cleared to sync?',
-    bodyHtml: 'Push these waypoints to the <b>Route Planner</b> so its energy numbers reflect what you just saved?',
-    bodyHtmlOnMismatch: 'The Route Planner currently holds a different route. Syncing will <b>replace</b> it with this one — that’s safe; the planner only stores altitudes, distances and slider settings.'
-  });
-});
-// plan_sync.js is `defer` and runs after this inline script — register the
-// manual-sync item once the DOM is ready (defer scripts complete before
-// DOMContentLoaded fires).
-window.addEventListener('DOMContentLoaded',()=>{
-  if(window.velisPlan&&window.velisPlan.registerManualSync){
-    window.velisPlan.registerManualSync({
-      label: 'Sync to Route Planner now',
-      fn: pushNavToRoutePlanner,
-      available: ()=> Array.isArray(state&&state.route) && state.route.length>=3
-    });
-  }
+// Fired just before plan_sync.js snapshots localStorage into the bundle —
+// flush our state and any pending Route-Planner push so the bundle holds both
+// pages in their synced form.
+document.addEventListener('velis:before-save',()=>{
+  saveLocal();
+  if(_rpPushTimer){clearTimeout(_rpPushTimer);_rpPushTimer=null;pushNavToRoutePlanner();}
 });
 
 // Fired after plan_sync.js writes the loaded bundle's localStorage keys.
@@ -1162,42 +1140,7 @@ function rpStateToParsed(s){
   });
   return rows;
 }
-// Compare NAV Plan with Route Planner. Returns:
-//   {status:'no-rp'} — Route Planner has no usable route yet
-//   {status:'in-sync', parsed} — names + alt + dist all match
-//   {status:'out-of-sync', parsed} — anything differs
-function rpSyncStatus(){
-  const s=readRoutePlannerState();
-  const parsed=rpStateToParsed(s);
-  if(!parsed||parsed.length<2) return {status:'no-rp'};
-  if(!rpRouteMatchesCurrent(parsed)) return {status:'out-of-sync',parsed};
-  // Numeric comparison — NAV stores user-typed strings ("4,000") while RP
-  // stores integers (4000), so a textual `!==` falsely reports out-of-sync.
-  // Null on either side counts as in-sync for that field: an empty NAV cell
-  // means the pilot hasn't specified anything, so RP's slider default is fine.
-  // We also clamp NAV's value through RP's slider range — pushNavToRoutePlanner
-  // does that on the way in, so a NAV dist of 1 (below RP's 2 nm min) shows
-  // up as 2 in RP, and a raw `!==` would loop forever in Always mode.
-  const {parseAlt,parseDist}=window.velisWp;
-  const cl=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
-  const last=parsed.length-1;
-  let prevAlt=null;
-  for(let i=0;i<parsed.length;i++){
-    const {leg,curAlt}=wpFromSkyDemon(parsed[i],prevAlt);
-    const navAlt=parseAlt(state.route[i].alt), rpAlt=parseAlt(leg.alt);
-    const isEnd=(i===0||i===last);
-    const altLo=isEnd?0:500, altHi=isEnd?8000:15000;
-    if(navAlt!=null && rpAlt!=null && cl(navAlt,altLo,altHi)!==rpAlt) return {status:'out-of-sync',parsed};
-    if(i>0){
-      const navDist=parseDist(state.route[i].dist), rpDist=parseDist(leg.dist);
-      if(navDist!=null && rpDist!=null && cl(navDist,1,120)!==rpDist) return {status:'out-of-sync',parsed};
-    }
-    prevAlt=curAlt;
-  }
-  return {status:'in-sync',parsed};
-}
-
-/* ═══ NAV → Route Planner push (after save / manual sync) ═══════════════
+/* ═══ NAV → Route Planner push (always-on, debounced via scheduleRpPush) ═══
    The Route Planner stores velis_route_state as
      {approach, legs:[{alt,dist,name}], soh, soc0, res, oat, cruiseKw,
       depAlt, arrAlt, arrDist, depName, arrName, perfAdj}
@@ -1234,19 +1177,12 @@ function pushNavToRoutePlanner(){
   window.velisPlan&&window.velisPlan.markDirty();
   return true;
 }
-// Returns {inSync} or {inSync:false, mismatch:bool}.
-// 'mismatch' means route shape (waypoint names / count) differs — pushing will
-// replace RP's route. That's safe (RP has no pilot-only fields) but we use it
-// to soften the popup wording so the user knows what they're agreeing to.
-function navIsInSyncWithRp(){
-  if(!state||!Array.isArray(state.route)||state.route.length<3) return {inSync:true};
-  const rpRaw=localStorage.getItem('velis_route_state');
-  if(!rpRaw) return {inSync:true};            // first-time user: don't pester
-  const st=rpSyncStatus();
-  if(st.status==='no-rp') return {inSync:true};
-  if(st.status==='in-sync') return {inSync:true};
-  const shapeOk = !!(st.parsed && rpRouteMatchesCurrent(st.parsed));
-  return {inSync:false, mismatch:!shapeOk};
+// Debounced so typing in a cell doesn't rewrite velis_route_state per
+// keystroke. velis:before-save flushes a pending push before bundling.
+let _rpPushTimer=null;
+function scheduleRpPush(){
+  clearTimeout(_rpPushTimer);
+  _rpPushTimer=setTimeout(()=>{_rpPushTimer=null;pushNavToRoutePlanner();},300);
 }
 function setImportMode(mode){
   importMode=mode;
@@ -1383,7 +1319,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=21" defer></script>
+<script src="plan_sync.js?v=22" defer></script>
 
 </body>
 </html>

@@ -807,7 +807,7 @@ function _applyInputFields(s){
   for(const [k,id] of Object.entries(STATE_FIELDS))
     if(s[k]!==undefined) document.getElementById(id).value=s[k];
 }
-function saveState(){localStorage.setItem('velis_da20_route_state',JSON.stringify(getFullState()));if(window.velisPlan)window.velisPlan.markDirty();else localStorage.setItem('velis_bundle_mtime',String(Date.now()));}
+function saveState(){localStorage.setItem('velis_da20_route_state',JSON.stringify(getFullState()));if(window.velisPlan)window.velisPlan.markDirty();else localStorage.setItem('velis_bundle_mtime',String(Date.now()));scheduleNavPush();}
 function loadState(){
   const raw=localStorage.getItem('velis_da20_route_state');if(!raw)return;
   try{
@@ -917,8 +917,9 @@ window.addEventListener('pageshow',_refreshFromState);
 document.addEventListener('velis:after-load',_refreshFromState);
 
 /* ═══ NAV PLAN ⇄ ROUTE PLANNER SYNC ═══
-   Reads/writes velis_da20_navplan_state (the DA20 NAV Plan). Preserves pilot
-   fields; only pushes when the waypoint sequence matches (else rebuilds). */
+   Always-on: every saveState() schedules a debounced push into
+   velis_da20_navplan_state (the DA20 NAV Plan). Where waypoint rows line up,
+   pilot-entered NAV fields (winds, freqs, EET, remarks) are kept. */
 function rpAsWpList(){
   const depName=document.getElementById('dep-name').value.trim();
   const arrName=document.getElementById('arr-name').value.trim();
@@ -932,57 +933,13 @@ function rpAsWpList(){
   wps.push({name:arrName, alt:isFinite(arrAlt)?arrAlt:null, dist:isFinite(arrDist)?arrDist:null});
   return wps;
 }
-function navAsWpList(){
-  const raw=localStorage.getItem('velis_da20_navplan_state');
-  if(!raw) return null;
-  let nav; try{nav=JSON.parse(raw);}catch(e){return null;}
-  const route=Array.isArray(nav.route)?nav.route:[];
-  if(route.length<2) return null;
-  const {parseAlt,parseDist,joinName}=window.velisWp;
-  const rowName = r => {
-    const id=(r&&r.ident||'').trim();
-    const wp=(r&&r.wp||'').trim();
-    return (/\d+\.\d+/.test(id) ? wp : joinName(id, wp)).trim();
-  };
-  return route.map((r,i)=>({
-    name: rowName(r),
-    alt:  parseAlt(r.alt),
-    dist: i===0 ? null : parseDist(r.dist)
-  }));
-}
-function rpIsInSyncWithNav(){
-  if(!Array.isArray(legs)||legs.length===0) return {inSync:true};
-  const navWps=navAsWpList();
-  if(!navWps) return {inSync:true};
-  const rpWps=rpAsWpList();
-  if(navWps.length!==rpWps.length) return {inSync:false, mismatch:true};
-  for(let i=0;i<navWps.length;i++){
-    const a=(navWps[i].name||'').toLowerCase();
-    const b=(rpWps[i].name||'').toLowerCase();
-    if(a!==b) return {inSync:false, mismatch:true};
-  }
-  const _isNum = v => typeof v==='number' && !isNaN(v);
-  const _cl   = (n,lo,hi) => Math.max(lo, Math.min(hi, n));
-  const last  = navWps.length-1;
-  for(let i=0;i<navWps.length;i++){
-    const na=navWps[i].alt, ra=rpWps[i].alt;
-    if(_isNum(na) && _isNum(ra)){
-      const isEnd=(i===0||i===last);
-      const altLo=isEnd?0:500, altHi=isEnd?8000:15000;
-      if(_cl(na,altLo,altHi)!==ra) return {inSync:false, mismatch:false};
-    }
-    if(i>0){
-      const nd=navWps[i].dist, rd=rpWps[i].dist;
-      if(_isNum(nd) && _isNum(rd) && _cl(nd,1,120)!==rd) return {inSync:false, mismatch:false};
-    }
-  }
-  return {inSync:true};
-}
 function pushRouteToNavPlan(){
   const rpWps=rpAsWpList();
+  // No NAV state yet → create one holding just the route; the NAV Plan merges
+  // partial state with its defaults on load.
   const raw=localStorage.getItem('velis_da20_navplan_state');
-  if(!raw) return false;
-  let nav; try{nav=JSON.parse(raw);}catch(e){return false;}
+  let nav; try{nav=raw?(JSON.parse(raw)||{}):{};}catch(e){nav={};}
+  if(typeof nav!=='object'||Array.isArray(nav)) nav={};
   const route=Array.isArray(nav.route)?nav.route:[];
 
   const sameShape = route.length===rpWps.length && rpWps.every((rp,i)=>{
@@ -1040,24 +997,16 @@ function pushRouteToNavPlan(){
   window.velisPlan&&window.velisPlan.markDirty();
   return true;
 }
-document.addEventListener('velis:after-save',()=>{
-  if(!window.velisPlan||!window.velisPlan.runAutoSync) return;
-  window.velisPlan.runAutoSync({
-    isInSync: rpIsInSyncWithNav,
-    onConfirm: pushRouteToNavPlan,
-    title: 'Cleared to sync?',
-    bodyHtml: 'Push these altitudes &amp; distances to the <b>NAV Plan</b>? Pilot fields (winds, freqs, EET, remarks) stay untouched.',
-    bodyHtmlOnMismatch: 'The NAV Plan has a <b>different route</b>. Syncing will rebuild it from this one — pilot fields (winds, freqs, EET, remarks) are kept per position where rows still line up.'
-  });
-});
-window.addEventListener('DOMContentLoaded',()=>{
-  if(window.velisPlan&&window.velisPlan.registerManualSync){
-    window.velisPlan.registerManualSync({
-      label: 'Sync to NAV Plan now',
-      fn: pushRouteToNavPlan,
-      available: ()=> !!localStorage.getItem('velis_da20_navplan_state') && Array.isArray(legs) && legs.length>0
-    });
-  }
+// Debounced so slider drags (one saveState per frame) don't rebuild the NAV
+// state per pixel. velis:before-save flushes a pending push so a save bundle
+// always contains the NAV Plan matching the route it was saved with.
+let _navPushTimer=null;
+function scheduleNavPush(){
+  clearTimeout(_navPushTimer);
+  _navPushTimer=setTimeout(()=>{_navPushTimer=null;pushRouteToNavPlan();},300);
+}
+document.addEventListener('velis:before-save',()=>{
+  if(_navPushTimer){clearTimeout(_navPushTimer);_navPushTimer=null;pushRouteToNavPlan();}
 });
 
 /* ═══ INIT ═══ */
@@ -1089,6 +1038,6 @@ async function init(){
 }
 init();
 </script>
-<script src="plan_sync.js?v=21" defer></script>
+<script src="plan_sync.js?v=22" defer></script>
 </body>
 </html>

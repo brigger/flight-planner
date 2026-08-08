@@ -49,7 +49,7 @@ window.velisWp = (function(){
   const MTIME_KEY      = 'velis_bundle_mtime';
   const STIME_KEY      = 'velis_bundle_stime';
   const VIEW_KEY       = 'velis_navplan_view';
-  const AUTO_SYNC_KEY  = 'velis_auto_sync';            // 'ask' | 'always' | 'never' (per device)
+  const AUTO_SYNC_KEY  = 'velis_auto_sync';            // legacy sync-pref key — sync is always-on now; kept only so stale values stay out of bundles
   const AC_KEY         = 'velis_aircraft';             // selected aircraft id (UI pref)
   const FREQ_DIR_KEY   = 'velis_freq_directory';       // cached global freq directory (not per-plan data)
   const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY]);
@@ -125,18 +125,6 @@ window.velisWp = (function(){
 .plan-menu .who .em{text-transform:none;letter-spacing:0;font-weight:500;color:var(--tx,#1a1a1a);display:block;font-size:12px;margin-top:2px;}
 .plan-menu .sep{height:1px;background:var(--bd,#e2ddd6);margin:4px 6px;}
 .plan-menu .kbd{margin-left:auto;font-size:10.5px;color:var(--tx2,#6b6660);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
-.plan-menu .sync-pref{padding:8px 14px 10px;}
-.plan-menu .sync-pref .lbl{font-weight:600;text-transform:uppercase;letter-spacing:0.04em;font-size:10.5px;color:var(--tx2,#6b6660);display:block;margin-bottom:6px;}
-.plan-menu .sync-pref .opts{display:flex;gap:4px;}
-.plan-menu .sync-pref label{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;color:var(--tx,#1a1a1a);font-weight:500;font-size:12px;padding:6px 4px;border:1px solid var(--bd,#e2ddd6);border-radius:6px;background:#fff;}
-.plan-menu .sync-pref label:hover{background:var(--bg-sec,#f5f4f1);}
-.plan-menu .sync-pref label.on{background:var(--bg-sec,#f5f4f1);border-color:var(--blue,#185FA5);color:var(--blue,#185FA5);}
-.plan-menu .sync-pref input{margin:0;accent-color:var(--blue,#185FA5);}
-
-.plan-sync-body{font-size:13px;color:var(--tx,#1a1a1a);line-height:1.5;margin:0 0 18px;}
-.plan-sync-body b{font-weight:600;color:var(--tx,#1a1a1a);}
-.plan-sync-warn{font-size:11.5px;color:#7A5700;background:#FFF8E7;border:1px solid #F2DDA0;border-radius:6px;padding:8px 10px;margin:-8px 0 16px;line-height:1.4;display:none;}
-.plan-sync-warn.show{display:block;}
 .plan-modal-actions .ghost{background:transparent;border-color:transparent;color:var(--tx2,#6b6660);text-decoration:underline;padding-left:6px;padding-right:6px;}
 .plan-modal-actions .ghost:hover{color:var(--tx,#1a1a1a);}
 
@@ -205,35 +193,9 @@ window.velisWp = (function(){
   <button type="button" data-act="save">Save<span class="kbd">⌘S</span></button>
   <button type="button" data-act="save-as">Save as…</button>
   <button type="button" data-act="load">Load…</button>
-  <div class="sep" id="plan-menu-sync-sep" hidden></div>
-  <button type="button" data-act="manual-sync" id="plan-menu-manual-sync" hidden></button>
-  <div class="sync-pref" id="plan-menu-sync-pref" hidden>
-    <span class="lbl">Sync prompt</span>
-    <div class="opts">
-      <label data-val="ask"><input type="radio" name="plan-sync-pref" value="ask"> Ask</label>
-      <label data-val="always"><input type="radio" name="plan-sync-pref" value="always"> Always</label>
-      <label data-val="never"><input type="radio" name="plan-sync-pref" value="never"> Never</label>
-    </div>
-  </div>
   <div class="sep"></div>
   <button type="button" data-act="signin" id="plan-menu-signin">Sign in</button>
   <button type="button" data-act="logout" id="plan-menu-logout" hidden>Sign out</button>
-</div>`;
-
-  const SYNC_HTML = `
-<div class="plan-modal" id="plan-sync-modal" hidden>
-  <div class="plan-modal-box">
-    <h3 id="plan-sync-title">Cleared to sync?</h3>
-    <p class="plan-sync-body" id="plan-sync-body"></p>
-    <div class="plan-sync-warn" id="plan-sync-warn"></div>
-    <div class="plan-modal-actions">
-      <button type="button" id="plan-sync-not-now" class="ghost">Not now</button>
-      <span class="spacer"></span>
-      <button type="button" id="plan-sync-never">Never ask</button>
-      <button type="button" id="plan-sync-always">Always</button>
-      <button type="button" id="plan-sync-now" class="primary">Sync now</button>
-    </div>
-  </div>
 </div>`;
 
   const AUTH_HTML = `
@@ -841,152 +803,9 @@ window.velisWp = (function(){
   function _syncDbg(msg){ try{ console.log('[sync]', msg); }catch(e){} }
   window.velisSyncDbg = _syncDbg;
 
-  /* ─── Cross-page sync prompt ───
-     Pages register an isInSync() check + a push function via registerManualSync()
-     and call runAutoSync() in their velis:after-save listener. The modal here
-     handles 'ask' mode; 'always' fires the push silently; 'never' is a no-op.
-     A "Sync now" item lives in the FAB menu as a manual escape hatch. */
-  let manualSyncReg = null;             // { label, fn, available, warn }
-  let pendingSync   = null;             // { onConfirm, warn } while modal is open
-
-  function getAutoSyncPref(){
-    const v=localStorage.getItem(AUTO_SYNC_KEY);
-    return (v==='always'||v==='never') ? v : 'ask';
-  }
-  function setAutoSyncPref(v){
-    if(v!=='always'&&v!=='never') v='ask';
-    safeSetItem(AUTO_SYNC_KEY,v);
-    updateSyncPrefUI();
-  }
-
-  function openSyncPrompt({title,bodyHtml,warn,onConfirm}){
-    const modal=document.getElementById('plan-sync-modal');
-    if(!modal){console.warn('[sync] openSyncPrompt: #plan-sync-modal missing');return;}
-    console.log('[sync] openSyncPrompt: showing modal', {warn});
-    pendingSync={onConfirm,warn:!!warn};
-    document.getElementById('plan-sync-title').textContent=title||'Cleared to sync?';
-    document.getElementById('plan-sync-body').innerHTML=bodyHtml||'';
-    const w=document.getElementById('plan-sync-warn');
-    if(warn){w.textContent=warn;w.classList.add('show');}
-    else{w.textContent='';w.classList.remove('show');}
-    // Warning is informational — Sync/Always stay clickable.
-    document.getElementById('plan-sync-now').disabled=false;
-    document.getElementById('plan-sync-always').disabled=false;
-    modal.hidden=false;
-    setTimeout(()=>{document.getElementById('plan-sync-not-now').focus();},50);
-  }
-  function closeSyncPrompt(){
-    const modal=document.getElementById('plan-sync-modal');
-    if(modal) modal.hidden=true;
-    pendingSync=null;
-  }
-  function runAutoSync({isInSync,onConfirm,title,bodyHtml,warnOnMismatch,bodyHtmlOnMismatch}){
-    let inSync=true;
-    let mismatch=false;
-    let isInSyncRaw;
-    try{
-      isInSyncRaw = isInSync&&isInSync();
-      const r = isInSyncRaw;
-      if(r&&typeof r==='object'){inSync=!!r.inSync;mismatch=!!r.mismatch;}
-      else{inSync=!!r;}
-    }catch(e){_syncDbg('runAutoSync isInSync threw: '+(e&&e.message||e)); inSync=true;}
-    const pref=getAutoSyncPref();
-    _syncDbg('runAutoSync inSync='+inSync+' mismatch='+mismatch+' pref='+pref+' raw='+JSON.stringify(isInSyncRaw));
-    if(inSync){_syncDbg('runAutoSync: SILENT (already in sync) — nothing to do');return;}
-    if(pref==='never'){_syncDbg('runAutoSync: MUTED (pref=never)');return;}
-    if(pref==='always'){
-      // User opted in to silent sync regardless of mismatch — trust them.
-      _syncDbg('runAutoSync: pref=always → running onConfirm silently (mismatch='+mismatch+')');
-      try{onConfirm&&onConfirm();}catch(e){_syncDbg('auto-sync failed: '+(e&&e.message||e));}
-      _autoCommitAfterSync();
-      return;
-    }
-    _syncDbg('runAutoSync: OPENING prompt modal');
-    openSyncPrompt({
-      title,
-      bodyHtml: mismatch && bodyHtmlOnMismatch ? bodyHtmlOnMismatch : bodyHtml,
-      warn: mismatch ? warnOnMismatch : '',
-      onConfirm
-    });
-  }
-
-  function registerManualSync(reg){
-    manualSyncReg = reg && reg.fn ? reg : null;
-    updateManualSyncButton();
-  }
-  function updateManualSyncButton(){
-    const btn=document.getElementById('plan-menu-manual-sync');
-    const sep=document.getElementById('plan-menu-sync-sep');
-    const pref=document.getElementById('plan-menu-sync-pref');
-    if(!btn) return;
-    if(!manualSyncReg){
-      btn.hidden=true; if(sep)sep.hidden=true; if(pref)pref.hidden=true;
-      return;
-    }
-    if(sep) sep.hidden=false;
-    if(pref) pref.hidden=false;
-    btn.hidden=false;
-    btn.textContent=manualSyncReg.label||'Sync now';
-    let canRun=true;
-    try{ canRun = !manualSyncReg.available || !!manualSyncReg.available(); }catch(e){canRun=false;}
-    btn.disabled=!canRun;
-  }
-  function updateSyncPrefUI(){
-    const pref=getAutoSyncPref();
-    document.querySelectorAll('#plan-menu-sync-pref input[name="plan-sync-pref"]').forEach(inp=>{
-      inp.checked = inp.value===pref;
-    });
-    document.querySelectorAll('#plan-menu-sync-pref label').forEach(lb=>{
-      lb.classList.toggle('on', lb.dataset.val===pref);
-    });
-  }
-  // Sync writes to localStorage and marks the bundle dirty. Without an
-  // auto-commit the user would have to hit ⌘S a second time to flush the
-  // sync to the server — and currentMeta.id is already set at this point,
-  // so the second save is a quiet PUT.
-  function _autoCommitAfterSync(){
-    if(!currentUser) return;
-    const meta=currentMeta();
-    if(!meta.id) return;
-    // Fire-and-forget: doSave handles its own errors via alert().
-    setTimeout(()=>{ try{doSave();}catch(e){_syncDbg('auto-commit doSave threw: '+(e&&e.message||e));} },0);
-  }
-  function wireSyncModal(){
-    document.getElementById('plan-sync-not-now').addEventListener('click',closeSyncPrompt);
-    document.getElementById('plan-sync-now').addEventListener('click',()=>{
-      const p=pendingSync; closeSyncPrompt();
-      if(p&&p.onConfirm){
-        try{p.onConfirm();}catch(e){_syncDbg('sync failed: '+(e&&e.message||e));}
-        _autoCommitAfterSync();
-      }
-    });
-    document.getElementById('plan-sync-always').addEventListener('click',()=>{
-      const p=pendingSync; setAutoSyncPref('always'); closeSyncPrompt();
-      if(p&&p.onConfirm){
-        try{p.onConfirm();}catch(e){_syncDbg('sync failed: '+(e&&e.message||e));}
-        _autoCommitAfterSync();
-      }
-    });
-    document.getElementById('plan-sync-never').addEventListener('click',()=>{
-      setAutoSyncPref('never'); closeSyncPrompt();
-    });
-  }
-  function wireSyncPref(){
-    document.querySelectorAll('#plan-menu-sync-pref input[name="plan-sync-pref"]').forEach(inp=>{
-      inp.addEventListener('change',()=>{ if(inp.checked) setAutoSyncPref(inp.value); });
-    });
-    // Allow clicking the whole pill row (labels wrap radios already, but make
-    // sure menu open/close doesn't swallow the click).
-    document.getElementById('plan-menu-sync-pref').addEventListener('click',ev=>{
-      ev.stopPropagation();
-    });
-    updateSyncPrefUI();
-  }
 
   /* ─── FAB + menu ─── */
   function openMenu(){
-    updateManualSyncButton();
-    updateSyncPrefUI();
     const m=document.getElementById('plan-menu');
     m.dataset.open='1';
     setTimeout(()=>document.addEventListener('click',onDocClickOnce,{once:true}),0);
@@ -1015,11 +834,6 @@ window.velisWp = (function(){
       if(act==='save') doSave();
       else if(act==='save-as') doSaveAs();
       else if(act==='load') doLoad();
-      else if(act==='manual-sync'){
-        if(manualSyncReg&&manualSyncReg.fn){
-          try{manualSyncReg.fn();}catch(e){console.warn('manual sync failed',e);}
-        }
-      }
       else if(act==='signin') openAuthModal();
       else if(act==='logout') doLogout();
     });
@@ -1034,7 +848,6 @@ window.velisWp = (function(){
         closeMenu();
         const a=document.getElementById('plan-auth-modal');if(a&&!a.hidden) closeAuthModal();
         const l=document.getElementById('plan-load-modal');if(l&&!l.hidden) closeLoadModal();
-        const s=document.getElementById('plan-sync-modal');if(s&&!s.hidden) closeSyncPrompt();
       }
     });
   }
@@ -1054,13 +867,11 @@ window.velisWp = (function(){
   }
   function injectFabAndModals(){
     if(document.getElementById('plan-fab')) return;
-    document.body.insertAdjacentHTML('beforeend',FAB_HTML+MENU_HTML+AUTH_HTML+LOAD_HTML+SYNC_HTML);
+    document.body.insertAdjacentHTML('beforeend',FAB_HTML+MENU_HTML+AUTH_HTML+LOAD_HTML);
     wireFab();
     wireMenu();
     wireAuthModal();
     wireLoadModal();
-    wireSyncModal();
-    wireSyncPref();
   }
 
   function boot(){
@@ -1091,10 +902,6 @@ window.velisWp = (function(){
     openAuth:openAuthModal, logout:doLogout,
     markDirty:markBundleDirty, markSaved:markBundleSaved,
     bundleDirty, updateStatus:repaint,
-    promptSync:openSyncPrompt,
-    runAutoSync,
-    registerManualSync,
-    getAutoSyncPref, setAutoSyncPref,
     get user(){return currentUser;}
   };
 })();
