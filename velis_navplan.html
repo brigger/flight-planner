@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=4">
+<link rel="stylesheet" href="navplan.css?v=5">
 </head>
 <body>
 
@@ -317,6 +317,14 @@ const fmtNum=(n,d=2)=>isFinite(n)?n.toFixed(d):'';
 /* ─── Render waypoint table ─── */
 function buildRouteHTML(){
   const last=state.route.length-1;
+  // Planned %SOC over each waypoint, computed by the Route Planner. Shown only
+  // while the array still lines up with this route — it refreshes the next
+  // time the Route Planner page recomputes.
+  let socs=null;
+  try{
+    const a=JSON.parse(localStorage.getItem('velis_wp_soc')||'null');
+    if(Array.isArray(a)&&a.length===state.route.length) socs=a;
+  }catch(e){}
   let html='';
   state.route.forEach((r,i)=>{
     const role=i===0?'dep':(i===last?'dest':'wp');
@@ -325,12 +333,12 @@ function buildRouteHTML(){
     else if(i===1) eetExtra='+5';           // first leg — takeoff buffer
     else if(i===last) eetExtra='+5';        // last leg — landing buffer
     if(i===last) html+=addRow();            // + row immediately before DEST
-    html+=wpRow(r,i,role,eetExtra);
+    html+=wpRow(r,i,role,eetExtra,socs&&isFinite(socs[i])?socs[i]:null);
   });
   return html;
 }
 
-function wpRow(r,i,role,eetExtra){
+function wpRow(r,i,role,eetExtra,socEst){
   const canDel=role==='wp';
   const canIns=role!=='dest';
   const canMergeUp=role==='wp'&&i>=2;                     // previous row must not be DEP
@@ -346,7 +354,7 @@ function wpRow(r,i,role,eetExtra){
     <td><input class="single-inp" data-f="hdg" value="${esc(r.hdg)}"></td>
     <td><input class="single-inp" data-f="dist" inputmode="decimal" value="${esc(r.dist)}"></td>
     <td class="alt-td"><div class="alt-wrap">${trendBtnHTML(r.altTrend||'',`data-trend-idx="${i}"`)}<input class="single-inp alt-inp" data-f="alt" value="${esc(r.alt)}"></div>${canIns?`<button class="ins-btn" data-ins="${i}" title="Insert waypoint below" type="button">＋</button>`:''}</td>
-    <td><input class="single-inp" data-f="eet" value="${esc(r.eet)}">${eetExtra?`<span class="eet-extra">${eetExtra}</span>`:''}</td>
+    <td><input class="single-inp" data-f="eet" value="${esc(r.eet)}">${eetExtra?`<span class="eet-extra">${eetExtra}</span>`:''}${socEst!=null?`<span class="soc-est">${socEst}%</span>`:''}</td>
     <td><input class="single-inp" data-f="ato" value="${esc(r.ato)}"></td>
     <td><input class="single-inp" data-f="wind" value="${esc(r.wind)}"></td>
     <td class="dual">
@@ -922,6 +930,14 @@ document.addEventListener('velis:after-load',()=>{
   E.extraT.value=state.end.extraT||'';
   renderWP();
   refreshEndurance();
+});
+
+// Restored from the back/forward cache — the Route Planner may have pushed
+// route changes (and fresh %SOC estimates) while this page was away.
+window.addEventListener('pageshow',e=>{
+  if(!e.persisted) return;
+  state=loadState();
+  renderWP();
 });
 
 /* ═════════════════════════════════════════════════════════════════════

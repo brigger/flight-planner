@@ -131,6 +131,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
 
 .wp .del-btn{position:absolute;top:0.5mm;right:0.5mm;width:4mm;height:4mm;border:none;background:transparent;color:#B08888;cursor:pointer;font-size:11pt;line-height:1;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;opacity:0.75;transition:opacity 0.12s,background 0.12s;}
 .wp .eet-extra{position:absolute;top:0.3mm;right:0.8mm;font-size:5.5pt;color:var(--tx2);font-weight:500;line-height:1;pointer-events:none;opacity:0.75;font-variant:tabular-nums;}
+.wp .soc-est{position:absolute;bottom:0.3mm;right:0.8mm;font-size:5.5pt;color:#3E6B1F;font-weight:600;line-height:1;pointer-events:none;opacity:0.85;font-variant:tabular-nums;}
 .wp .del-btn:hover{opacity:1;color:#791F1F;background:#FCEBEB;}
 .wp .merge-btn{position:absolute;right:4.4mm;width:3mm;height:3mm;border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:6.5pt;line-height:1;border-radius:50%;padding:0;display:flex;align-items:center;justify-content:center;opacity:0.6;transition:opacity 0.12s,background 0.12s;font-family:var(--font);}
 .wp .merge-btn.merge-up{top:0.7mm;}

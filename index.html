@@ -445,6 +445,9 @@ function update(){
   const socs=[startSocPct];
   let run=startSocPct;
   results.forEach(r=>{run=Math.max(0,run-r.soc);socs.push(run);});
+  // Persist for the NAV Plan — it renders these inside its EET column as an
+  // in-flight cross-check (planned %SOC over each waypoint).
+  localStorage.setItem('velis_wp_soc',JSON.stringify(socs.map(s=>Math.round(s))));
 
   // Summary
   document.getElementById('r-usable').textContent=usable.toFixed(1);
