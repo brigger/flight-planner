@@ -529,6 +529,25 @@ def auth_me():
     }}), 200
 
 
+@app.put("/api/auth/me")
+@require_user
+def auth_me_update():
+    data = request.get_json(force=True, silent=True) or {}
+    ok_f, first = valid_name(data.get("first_name"))
+    ok_l, last  = valid_name(data.get("last_name"))
+    if not (ok_f and ok_l):
+        return jsonify({"error": "First name and last name are required."}), 400
+    c = conn(); cur = c.cursor()
+    cur.execute("UPDATE users SET first_name = %s, last_name = %s WHERE id = %s",
+                (first, last, request.user["id"]))
+    cur.close(); c.close()
+    return jsonify({"ok": True, "user": {
+        "id": request.user["id"], "email": request.user["email"],
+        "first_name": first, "last_name": last,
+        "is_admin": is_admin_email(request.user["email"]),
+    }}), 200
+
+
 @app.post("/api/auth/logout")
 def auth_logout():
     tok = request.cookies.get(SESSION_COOKIE_NAME)

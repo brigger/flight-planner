@@ -205,6 +205,7 @@ window.velisWp = (function(){
   <button type="button" data-act="load">Load…</button>
   <div class="sep"></div>
   <button type="button" data-act="signin" id="plan-menu-signin">Sign in</button>
+  <button type="button" data-act="account" id="plan-menu-account" hidden>Account…</button>
   <button type="button" data-act="logout" id="plan-menu-logout" hidden>Sign out</button>
 </div>`;
 
@@ -238,6 +239,23 @@ window.velisWp = (function(){
       <button type="button" id="plan-auth-close">Close</button>
       <span class="spacer"></span>
       <button type="button" id="plan-auth-submit" class="primary">Send magic link</button>
+    </div>
+  </div>
+</div>`;
+
+  const ACCOUNT_HTML = `
+<div class="plan-modal" id="plan-account-modal" hidden>
+  <div class="plan-modal-box">
+    <h3>Account</h3>
+    <div class="err" id="plan-account-err"></div>
+    <label>First name<input id="plan-account-first" type="text" autocomplete="given-name"></label>
+    <label>Last name<input id="plan-account-last" type="text" autocomplete="family-name"></label>
+    <label>Email<input id="plan-account-email" type="email" disabled></label>
+    <p class="hint">Your name appears on sign-in pages and pre-fills the NAV Plan's PILOT field. The email is the account and can't be changed.</p>
+    <div class="plan-modal-actions">
+      <button type="button" id="plan-account-cancel">Cancel</button>
+      <span class="spacer"></span>
+      <button type="button" id="plan-account-save" class="primary">Save</button>
     </div>
   </div>
 </div>`;
@@ -502,13 +520,14 @@ window.velisWp = (function(){
     const sig=document.getElementById('plan-menu-signin');
     const lo =document.getElementById('plan-menu-logout');
     if(!who) return;
+    const acct=document.getElementById('plan-menu-account');
     if(currentUser){
       who.hidden=false; sep.hidden=false;
       em.textContent=currentUser.email;
-      sig.hidden=true; lo.hidden=false;
+      sig.hidden=true; lo.hidden=false; if(acct) acct.hidden=false;
     } else {
       who.hidden=true; sep.hidden=true;
-      sig.hidden=false; lo.hidden=true;
+      sig.hidden=false; lo.hidden=true; if(acct) acct.hidden=true;
     }
   }
   function repaint(){updateNav();updateStatus();updateFabDirty();updateMenuWho();}
@@ -544,6 +563,40 @@ window.velisWp = (function(){
     await refreshUser();
     if(!currentUser) openAuthModal();
   }
+  /* ─── Account modal — edit first/last name ─── */
+  function openAccountModal(){
+    if(!currentUser){openAuthModal();return;}
+    document.getElementById('plan-account-first').value=currentUser.first_name||'';
+    document.getElementById('plan-account-last').value=currentUser.last_name||'';
+    document.getElementById('plan-account-email').value=currentUser.email||'';
+    const err=document.getElementById('plan-account-err');
+    err.textContent='';err.classList.remove('show');
+    document.getElementById('plan-account-modal').hidden=false;
+    setTimeout(()=>document.getElementById('plan-account-first').focus(),50);
+  }
+  function closeAccountModal(){document.getElementById('plan-account-modal').hidden=true;}
+  async function saveAccount(){
+    const first=(document.getElementById('plan-account-first').value||'').trim();
+    const last =(document.getElementById('plan-account-last').value||'').trim();
+    const err=document.getElementById('plan-account-err');
+    err.textContent='';err.classList.remove('show');
+    if(!first||!last){err.textContent='First and last name are required.';err.classList.add('show');return;}
+    const btn=document.getElementById('plan-account-save');btn.disabled=true;
+    try{
+      const d=await api('/auth/me',{method:'PUT',body:JSON.stringify({first_name:first,last_name:last})});
+      if(d.user){currentUser=d.user;setCachedUser(d.user);}
+      repaint();
+      closeAccountModal();
+    }catch(e){
+      if(e.status===401){closeAccountModal();handle401();}
+      else{err.textContent='Could not save — please try again.';err.classList.add('show');}
+    }finally{btn.disabled=false;}
+  }
+  function wireAccountModal(){
+    document.getElementById('plan-account-cancel').addEventListener('click',closeAccountModal);
+    document.getElementById('plan-account-save').addEventListener('click',saveAccount);
+  }
+
   // "New" — start an empty, unsaved plan for the active aircraft: drop its
   // stored state (pages rebuild their defaults when the key is missing) and
   // land on the NAV Plan. Already there → rehydrate in place via after-load;
@@ -865,6 +918,7 @@ window.velisWp = (function(){
       else if(act==='save-as') doSaveAs();
       else if(act==='load') doLoad();
       else if(act==='signin') openAuthModal();
+      else if(act==='account') openAccountModal();
       else if(act==='logout') doLogout();
     });
   }
@@ -878,6 +932,7 @@ window.velisWp = (function(){
         closeMenu();
         const a=document.getElementById('plan-auth-modal');if(a&&!a.hidden) closeAuthModal();
         const l=document.getElementById('plan-load-modal');if(l&&!l.hidden) closeLoadModal();
+        const ac=document.getElementById('plan-account-modal');if(ac&&!ac.hidden) closeAccountModal();
       }
     });
   }
@@ -897,10 +952,11 @@ window.velisWp = (function(){
   }
   function injectFabAndModals(){
     if(document.getElementById('plan-fab')) return;
-    document.body.insertAdjacentHTML('beforeend',FAB_HTML+MENU_HTML+AUTH_HTML+LOAD_HTML);
+    document.body.insertAdjacentHTML('beforeend',FAB_HTML+MENU_HTML+AUTH_HTML+ACCOUNT_HTML+LOAD_HTML);
     wireFab();
     wireMenu();
     wireAuthModal();
+    wireAccountModal();
     wireLoadModal();
   }
 
