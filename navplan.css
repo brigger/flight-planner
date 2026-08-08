@@ -79,7 +79,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
 .hdr-subrow.r-cd .fld{grid-column:span 2;}
 .fld{display:flex;align-items:baseline;gap:1.5mm;min-width:0;}
 .fld-lbl{font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--tx2);white-space:nowrap;flex-shrink:0;}
-.fld-inp{flex:1;border-bottom:1px solid var(--bd2);min-height:4.5mm;font-size:9pt;padding:0 1mm 0.5mm;}
+.fld-inp{flex:1;border-bottom:1px solid var(--bd2);min-height:4.5mm;font-size:8pt;padding:0 1mm 0.5mm;}
 
 .wp{width:100%;border-collapse:collapse;font-size:8.5pt;table-layout:fixed;margin-bottom:3mm;}
 .wp th{background:var(--bg-sec);border:0.5px solid var(--bd);padding:1.5mm 1mm;font-size:7pt;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:0.04em;text-align:center;line-height:1.15;}
