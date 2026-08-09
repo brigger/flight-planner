@@ -6,7 +6,7 @@
 <title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=9">
+<link rel="stylesheet" href="navplan.css?v=10">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -964,7 +964,7 @@ function renderRouteMap(){
   const pts=[];let missing=0;
   state.route.forEach((r,i)=>{
     const ll=parseCoordStr(r.coord);
-    if(ll) pts.push({ll,label:wpLabel(r,i)});
+    if(ll) pts.push({ll,label:wpLabel(r,i),idx:i});
     else missing++;
   });
   if(pts.length<2){
@@ -974,9 +974,12 @@ function renderRouteMap(){
   hint.textContent=pts.length+' of '+state.route.length+' waypoints have coordinates'+(missing?' ('+missing+' without are skipped)':'');
   const line=L.polyline(pts.map(p=>p.ll),{color:'#d633c0',weight:4,opacity:0.9});
   const g=[line];
-  pts.forEach((p,i)=>{
-    g.push(L.circleMarker(p.ll,{radius:5,color:'#7a1f6d',weight:2,fillColor:'#fff',fillOpacity:1})
-      .bindTooltip(p.label,{permanent:i===0||i===pts.length-1,direction:'top',offset:[0,-6]}));
+  pts.forEach((p,k)=>{
+    const m=L.marker(p.ll,{draggable:true,zIndexOffset:500,
+      icon:L.divIcon({className:'wp-dot',iconSize:[14,14],iconAnchor:[7,7]})})
+      .bindTooltip(p.label,{permanent:k===0||k===pts.length-1,direction:'top',offset:[0,-8]});
+    m.on('dragend',()=>onWpDragEnd(p.idx,m));
+    g.push(m);
   });
   _routeLayer=L.layerGroup(g).addTo(_map);
   if(_watchId==null) _map.fitBounds(line.getBounds(),{padding:[36,36]});
@@ -1060,6 +1063,70 @@ document.getElementById('map-locate').addEventListener('click',()=>{
   },e=>{document.getElementById('map-hint').textContent='⚠ Location unavailable: '+(e&&e.message||'permission denied');},
   {enableHighAccuracy:true,timeout:15000});
 });
+
+/* ═══ DRAG-TO-EDIT — drag a waypoint on the map, snap it to the nearest
+   settlement (same behaviour as the RoutePlanner: Overpass place query,
+   tight radius incl. hamlets first, then wider), rename the waypoint,
+   rewrite its coordinate and refresh DIST/HDG of the two touched legs.
+   saveState() then syncs the Route Planner as with any other edit. ═══ */
+function fmtCoord(lat,lon){
+  const f=(v,w)=>{v=Math.abs(v);let d=Math.floor(v),m=Math.floor((v-d)*60),s=Math.round(((v-d)*60-m)*60);
+    if(s===60){s=0;m++;}if(m===60){m=0;d++;}
+    return String(d).padStart(w,'0')+String(m).padStart(2,'0')+String(s).padStart(2,'0');};
+  return (lat>=0?'N':'S')+f(lat,2)+' '+(lon>=0?'E':'W')+f(lon,3);
+}
+function _bearing(a,b){
+  const rad=Math.PI/180;
+  const y=Math.sin((b[1]-a[1])*rad)*Math.cos(b[0]*rad);
+  const x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos((b[1]-a[1])*rad);
+  return (Math.atan2(y,x)/rad+360)%360;
+}
+async function snapNearestPlace(lat,lon){
+  const tiers=[['city|town|village|hamlet',12000],['city|town|village',40000]];
+  for(const [re,rad] of tiers){
+    const q='[out:json][timeout:15];node["place"~"^('+re+')$"](around:'+rad+','+lat+','+lon+');out;';
+    try{
+      const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+      if(!r.ok) continue;
+      const els=(await r.json()).elements||[];
+      let best=null,bd=Infinity;
+      for(const el of els){
+        const name=el.tags&&el.tags.name;
+        if(!name) continue;
+        const d=_distNm([lat,lon],[el.lat,el.lon]);
+        if(d<bd){bd=d;best={name,lat:el.lat,lon:el.lon};}
+      }
+      if(best) return best;
+    }catch(e){}
+  }
+  return null;
+}
+async function onWpDragEnd(idx,marker){
+  const r=state.route[idx];
+  if(!r) return;
+  const p=marker.getLatLng();
+  let lat=p.lat,lon=p.lng;
+  document.getElementById('map-hint').textContent='Snapping to nearest place…';
+  const place=await snapNearestPlace(lat,lon);
+  if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
+  r.coord=fmtCoord(lat,lon);
+  // Refresh DIST + HDG (true track, no wind) of the legs into and out of it.
+  const upd=i=>{
+    if(i<=0||i>=state.route.length) return;
+    const a=parseCoordStr(state.route[i-1].coord),b=parseCoordStr(state.route[i].coord);
+    if(!a||!b) return;
+    state.route[i].dist=String(Math.ceil(_distNm(a,b)));
+    state.route[i].hdg=String(Math.round(_bearing(a,b))).padStart(3,'0');
+  };
+  upd(idx);upd(idx+1);
+  saveState();
+  renderWP();
+  document.getElementById('map-hint').textContent=place
+    ? 'Snapped to '+place.name+' — NAV Plan and Route Planner updated.'
+    : 'No nearby place found — kept the dragged position.';
+  renderRouteMap();
+}
+
 
 /* ═════════════════════════════════════════════════════════════════════
    BUNDLE SYNC — plan_sync.js owns the Save/Load UI; we just hook its
