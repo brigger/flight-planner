@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=14">
+<link rel="stylesheet" href="navplan.css?v=15">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -1112,6 +1112,12 @@ function renderRouteMap(fit){
     const m=L.marker(p.ll,{draggable:true,zIndexOffset:500,
       icon:L.divIcon({className:'wp-dot',iconSize:[14,14],iconAnchor:[7,7]})})
       .bindTooltip(p.label,{permanent:k===0||k===pts.length-1,direction:'top',offset:[0,-8]});
+    m.on('drag',()=>{
+      // Both attached segments share this vertex — move them live.
+      const lls=line.getLatLngs();
+      lls[k]=m.getLatLng();
+      line.setLatLngs(lls);
+    });
     m.on('dragend',()=>onWpDragEnd(p.idx,m));
     wireWpDelete(m,p);
     g.push(m);
@@ -1256,6 +1262,9 @@ async function onWpDragEnd(idx,marker){
   const p=marker.getLatLng();
   let lat=p.lat,lon=p.lng;
   const doSnap=snapEnabled();
+  // Pulse the dot itself while the lookup runs — the toast alone is missable.
+  const mel=marker.getElement();
+  if(mel) mel.classList.add('wp-snapping');
   mapToast(doSnap?'Snapping to nearest place…':'Moving waypoint…');
   const place=doSnap?await snapNearestPlace(lat,lon):null;
   if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
@@ -1309,7 +1318,10 @@ async function addWaypointAt(latlng){
   let lat=latlng.lat,lon=latlng.lng;
   const doSnap=snapEnabled();
   mapToast(doSnap?'Adding waypoint — snapping to nearest place…':'Adding waypoint…');
+  const tmp=L.marker([lat,lon],{interactive:false,
+    icon:L.divIcon({className:'wp-dot wp-snapping',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(_map);
   const place=doSnap?await snapNearestPlace(lat,lon):null;
+  tmp.remove();
   let name='';
   if(place){lat=place.lat;lon=place.lon;name=place.name;}
   const j=_routeInsertIndex([lat,lon]);
