@@ -183,6 +183,7 @@
       <span id="map-hint" class="map-hint"></span>
       <div class="map-actions">
         <label class="map-snap" title="Snap dragged and added points to the nearest settlement"><input type="checkbox" id="map-snap"> Snap</label>
+        <label class="map-snap" id="map-air-wrap" hidden title="Show or hide the openAIP airspace overlay"><input type="checkbox" id="map-air"> Airspace</label>
         <button type="button" id="map-locate" class="map-aip" title="Go to current location">➤</button>
         <button type="button" id="map-fly" class="map-aip" title="Fly mode — live position with GS / altitude">Fly ▶</button>
         <button type="button" id="map-aip-btn" class="map-aip"></button>
@@ -906,6 +907,7 @@ document.querySelectorAll('#view-seg button').forEach(btn=>{
    key from openaip.net, kept per device (excluded from save bundles).
    ═════════════════════════════════════════════════════════════════════ */
 const OPENAIP_KEY_LS='velis_openaip_key';
+const AIR_LS='velis_map_airspace';
 let _map=null,_routeLayer=null,_aipLayer=null;
 function parseCoordStr(s){
   const m=String(s||'').trim().match(/^([NS])(\d{2})(\d{2})(\d{2})\s+([EW])(\d{3})(\d{2})(\d{2})$/);
@@ -920,9 +922,14 @@ function aipRefresh(){
   // Once a key is set it is managed in the Account… dialog — keep the map bar clean.
   btn.hidden=!!key;
   btn.textContent='Airspaces: add free openAIP key…';
+  // Overlay toggle — the airspace tiles cover the base map's town labels,
+  // so being able to lift them matters when planning by place names.
+  document.getElementById('map-air-wrap').hidden=!key;
+  const airOn=localStorage.getItem(AIR_LS)!=='0';
+  document.getElementById('map-air').checked=airOn;
   if(_map){
     if(_aipLayer){_aipLayer.remove();_aipLayer=null;}
-    if(key){
+    if(key&&airOn){
       _aipLayer=L.tileLayer('https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey='+encodeURIComponent(key),
         {maxZoom:17,maxNativeZoom:14,opacity:0.9,attribution:'© <a href="https://www.openaip.net">openAIP</a>'});
       let _aipFailed=0,_aipOk=false;
@@ -1096,6 +1103,8 @@ const snapEnabled=()=>localStorage.getItem(SNAP_LS)!=='0';
   const cb=document.getElementById('map-snap');
   cb.checked=snapEnabled();
   cb.addEventListener('change',()=>{localStorage.setItem(SNAP_LS,cb.checked?'1':'0');});
+  const air=document.getElementById('map-air');
+  air.addEventListener('change',()=>{localStorage.setItem(AIR_LS,air.checked?'1':'0');aipRefresh();});
 }
 async function snapNearestPlace(lat,lon){
   const tiers=[['city|town|village|hamlet',12000],['city|town|village',40000]];
@@ -1656,7 +1665,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="da20_takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=31" defer></script>
+<script src="plan_sync.js?v=32" defer></script>
 
 </body>
 </html>
