@@ -6,7 +6,9 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=6">
+<link rel="stylesheet" href="navplan.css?v=7">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
 <body>
 
@@ -18,6 +20,7 @@
     <div class="seg" id="view-seg">
       <button type="button" data-view="view-nav" class="on">NAV Plan</button>
       <button type="button" data-view="view-fuel">Endurance calc</button>
+      <button type="button" data-view="view-map">Map</button>
     </div>
     <span class="sep">|</span>
     <button id="btn-import">Import…</button>
@@ -179,6 +182,15 @@
     </div>
 
   </div>
+
+  <!-- ═══ Route map (Map view) ═══ -->
+  <div class="map-pane" id="map-pane" hidden>
+    <div class="map-bar">
+      <span id="map-hint" class="map-hint"></span>
+      <button type="button" id="map-aip-btn" class="map-aip"></button>
+    </div>
+    <div id="route-map"></div>
+  </div>
 </div>
 
 <!-- ═══ Import-from-Sky-Demon modal ═══ -->
@@ -221,7 +233,7 @@
    ═════════════════════════════════════════════════════════════════════ */
 
 const STATE_KEY='velis_navplan_state';
-const EMPTY_WP=()=>({freq:'',ident:'',wp:'',hdg:'',dist:'',alt:'',altTrend:'',eet:'',ato:'',wind:'',freqR:'',remark:''});
+const EMPTY_WP=()=>({freq:'',ident:'',wp:'',hdg:'',dist:'',alt:'',altTrend:'',eet:'',ato:'',wind:'',freqR:'',remark:'',coord:''});
 const TREND_NEXT={'':'up',up:'down',down:''};
 const TREND_CHAR={'':'',up:'↗',down:'↘'};
 const trendBtnHTML=(t,attr)=>`<button class="trend-btn ${t?'':'empty'}" ${attr} data-trend="${t}" title="Toggle climb / descent / level">${TREND_CHAR[t]||''}</button>`;
@@ -910,10 +922,17 @@ document.getElementById('btn-print').addEventListener('click',()=>window.print()
 /* ═══ View toggle (NAV Plan / Endurance) ═══ */
 const VIEW_KEY='velis_navplan_view';
 const sheetEl=document.getElementById('sheet');
+const mapPane=document.getElementById('map-pane');
 const applyView=v=>{
-  sheetEl.classList.remove('view-nav','view-fuel');
-  sheetEl.classList.add(v);
+  const isMap=v==='view-map';
+  mapPane.hidden=!isMap;
+  sheetEl.style.display=isMap?'none':'';
+  if(!isMap){
+    sheetEl.classList.remove('view-nav','view-fuel');
+    sheetEl.classList.add(v);
+  }
   document.querySelectorAll('#view-seg button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  if(isMap) renderRouteMap();
 };
 applyView(localStorage.getItem(VIEW_KEY)||'view-nav');
 document.querySelectorAll('#view-seg button').forEach(btn=>{
@@ -923,6 +942,79 @@ document.querySelectorAll('#view-seg button').forEach(btn=>{
     localStorage.setItem(VIEW_KEY,v);
   });
 });
+
+/* ═════════════════════════════════════════════════════════════════════
+   ROUTE MAP — OpenStreetMap base + optional openAIP airspace overlay.
+   Coordinates come from Sky Demon imports (route rows carry a `coord`
+   string like "N465000 E0081050"). The openAIP key is a free personal
+   key from openaip.net, kept per device (excluded from save bundles).
+   ═════════════════════════════════════════════════════════════════════ */
+const OPENAIP_KEY_LS='velis_openaip_key';
+let _map=null,_routeLayer=null,_aipLayer=null;
+function parseCoordStr(s){
+  const m=String(s||'').trim().match(/^([NS])(\d{2})(\d{2})(\d{2})\s+([EW])(\d{3})(\d{2})(\d{2})$/);
+  if(!m) return null;
+  const lat=(+m[2]+ +m[3]/60+ +m[4]/3600)*(m[1]==='S'?-1:1);
+  const lon=(+m[6]+ +m[7]/60+ +m[8]/3600)*(m[5]==='W'?-1:1);
+  return [lat,lon];
+}
+function aipRefresh(){
+  const btn=document.getElementById('map-aip-btn');
+  const key=localStorage.getItem(OPENAIP_KEY_LS)||'';
+  btn.textContent=key?'Airspaces: openAIP on · change key':'Airspaces: add free openAIP key…';
+  if(_map){
+    if(_aipLayer){_aipLayer.remove();_aipLayer=null;}
+    if(key){
+      _aipLayer=L.tileLayer('https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey='+encodeURIComponent(key),
+        {maxZoom:14,opacity:0.9,attribution:'© <a href="https://www.openaip.net">openAIP</a>'});
+      _aipLayer.addTo(_map);
+    }
+  }
+}
+document.getElementById('map-aip-btn').addEventListener('click',()=>{
+  const cur=localStorage.getItem(OPENAIP_KEY_LS)||'';
+  const key=prompt('openAIP API key — create a free account at openaip.net, then Account → API clients. Leave empty to remove.',cur);
+  if(key===null) return;
+  if(key.trim()) localStorage.setItem(OPENAIP_KEY_LS,key.trim());
+  else localStorage.removeItem(OPENAIP_KEY_LS);
+  aipRefresh();
+});
+function renderRouteMap(){
+  const hint=document.getElementById('map-hint');
+  if(!window.L){
+    hint.textContent='Loading map…';
+    window.addEventListener('load',()=>{const p=document.getElementById('map-pane');if(p&&!p.hidden)renderRouteMap();},{once:true});
+    return;
+  }
+  if(!_map){
+    _map=L.map('route-map',{center:[46.8,8.2],zoom:9});
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {maxZoom:17,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(_map);
+    aipRefresh();
+  }
+  setTimeout(()=>_map.invalidateSize(),0);
+  if(_routeLayer){_routeLayer.remove();_routeLayer=null;}
+  const wpLabel=(r,i)=>((r.wp||'').trim()||(r.ident||'').trim()||('WP '+(i+1)));
+  const pts=[];let missing=0;
+  state.route.forEach((r,i)=>{
+    const ll=parseCoordStr(r.coord);
+    if(ll) pts.push({ll,label:wpLabel(r,i)});
+    else missing++;
+  });
+  if(pts.length<2){
+    hint.textContent='No coordinates on this route yet — use Import… with a Sky Demon nav log that includes the coordinate lines.';
+    return;
+  }
+  hint.textContent=pts.length+' of '+state.route.length+' waypoints have coordinates'+(missing?' ('+missing+' without are skipped)':'');
+  const line=L.polyline(pts.map(p=>p.ll),{color:'#d633c0',weight:4,opacity:0.9});
+  const g=[line];
+  pts.forEach((p,i)=>{
+    g.push(L.circleMarker(p.ll,{radius:5,color:'#7a1f6d',weight:2,fillColor:'#fff',fillOpacity:1})
+      .bindTooltip(p.label,{permanent:i===0||i===pts.length-1,direction:'top',offset:[0,-6]}));
+  });
+  _routeLayer=L.layerGroup(g).addTo(_map);
+  _map.fitBounds(line.getBounds(),{padding:[36,36]});
+}
 
 /* ═════════════════════════════════════════════════════════════════════
    BUNDLE SYNC — plan_sync.js owns the Save/Load UI; we just hook its
@@ -978,7 +1070,7 @@ function parseSkyDemon(text){
   const tokenize=l=>l.split(/\t+|\s{2,}/).map(p=>p.trim()).filter(Boolean);
   const flushPending=()=>{
     if(!pending) return;
-    wps.push({name:pending.name,elev:pending.elev||'',data:null});
+    wps.push({name:pending.name,elev:pending.elev||'',coord:pending.coord||'',data:null});
     pending=null;
   };
   for(const raw of lines){
@@ -991,6 +1083,11 @@ function parseSkyDemon(text){
       if(pending) pending.elev=line;
       continue;
     }
+    if(/^[NS]\d{6}\s+[EW]\d{7}$/.test(line)){          // coordinate line "N465000 E0081050"
+      if(pending) pending.coord=line;                   // belongs to the named waypoint above
+      else pending={name:line,elev:'',coord:line};      // unnamed turn point — coords are the name
+      continue;
+    }
     const parts=tokenize(line);
     const numCount=parts.filter(looksNumeric).length;
     const isData=parts.length>=5&&numCount>=5&&parts.some(isWind);
@@ -999,7 +1096,7 @@ function parseSkyDemon(text){
       const windIdx=parts.findIndex(isWind);
       const offset=windIdx-4;                         // align so MSA=0, Level=1, …, Time=8
       const g=i=>parts[i+offset];
-      wps.push({name:pending.name,elev:pending.elev||'',data:{
+      wps.push({name:pending.name,elev:pending.elev||'',coord:pending.coord||'',data:{
         msa:dropQuote(g(0)),level:dropQuote(g(1)),tas:g(2),trk:g(3),
         wind:g(4),hdg:g(5),gs:g(6),dist:g(7),eet:g(8)
       }});
@@ -1010,6 +1107,12 @@ function parseSkyDemon(text){
     }
   }
   flushPending();
+  // The departure block has no coordinate line (the units row follows it) —
+  // borrow the coord from a later row of the same name (out-and-back flight).
+  if(wps.length&&!wps[0].coord){
+    const twin=wps.find(w=>w.coord&&w.name===wps[0].name);
+    if(twin) wps[0].coord=twin.coord;
+  }
   return wps;
 }
 
@@ -1040,7 +1143,7 @@ function wpFromSkyDemon(w,prevAlt){
   const hdg=w.data?w.data.hdg||'':'';
   const wind=w.data?w.data.wind||'':'';
   return {
-    leg:{...EMPTY_WP(),ident,wp:wpName,alt,altTrend:trend,dist,eet,hdg,wind},
+    leg:{...EMPTY_WP(),ident,wp:wpName,alt,altTrend:trend,dist,eet,hdg,wind,coord:(w.coord||'').trim()},
     curAlt
   };
 }
@@ -1359,7 +1462,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=27" defer></script>
+<script src="plan_sync.js?v=28" defer></script>
 
 </body>
 </html>
