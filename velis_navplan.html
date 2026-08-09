@@ -1179,6 +1179,9 @@ function stopFly(){
   const b=document.getElementById('map-fly');if(b){b.classList.remove('on');b.textContent='Fly ▶';}
 }
 window._flyStop=stopFly;
+// Fly mode never survives leaving the page — Safari's back/forward cache
+// would otherwise restore the frozen HUD (and keep the GPS watch alive).
+window.addEventListener('pagehide',()=>{try{stopFly();}catch(e){}});
 document.getElementById('map-fly').addEventListener('click',()=>{_watchId==null?startFly():stopFly();});
 document.getElementById('map-locate').addEventListener('click',()=>{
   _followFly=true;
