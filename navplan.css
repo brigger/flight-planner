@@ -236,6 +236,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
 @media print{.map-pane{display:none !important;}}
 .map-aip.on{background:var(--blue);color:#fff;border-color:var(--blue);}
 .fly-plane{background:none;border:none;}
+.fly-hud[hidden]{display:none;}
 .fly-hud{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:4px;z-index:5;background:rgba(18,18,22,0.85);color:#fff;border-radius:12px;padding:9px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;box-shadow:0 6px 20px rgba(0,0,0,0.35);}
 .fly-hud .cell{text-align:center;min-width:66px;padding:0 6px;border-right:1px solid rgba(255,255,255,0.14);}
 .fly-hud .cell:last-child{border-right:none;}
