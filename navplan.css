@@ -274,3 +274,9 @@ body.fly-ui.fly-split .sheet{flex:0 0 auto;}
 /* Center the fly switcher — iOS fullscreen controls sit top-left */
 #fly-bar{justify-content:center;position:relative;}
 #fly-bar .fly-right{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;gap:10px;align-items:center;}
+/* Fly mode: no dead space between the bar and the content */
+body.fly-ui{padding-bottom:0;}
+body.fly-ui .page-wrap{padding:50px 8px 8px;gap:0;}
+body.fly-ui .map-pane{margin-top:0;}
+body.fly-ui #route-map{height:calc(100vh - 70px);}
+body.fly-ui.fly-split #route-map{height:calc(100vh - 70px);}
