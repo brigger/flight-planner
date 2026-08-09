@@ -1263,8 +1263,11 @@ function wireWpDelete(m,p){
     _suppressAddUntil=Date.now()+700;
     if(ok) doDelete();
   };
+  const coarse=window.matchMedia&&matchMedia('(pointer: coarse)').matches;
   m.on('dblclick',e=>{L.DomEvent.stop(e);ask();});
-  m.on('contextmenu',e=>{L.DomEvent.stop(e);ask();});
+  // Right-click deletes on desktop only — iPadOS fires contextmenu on
+  // long-press, which must stay neutral so press-and-hold can start a drag.
+  m.on('contextmenu',e=>{L.DomEvent.stop(e);if(!coarse)ask();});
   // Touch: a tap opens a popup with a Remove button — long-press clashed
   // with press-and-hold before dragging, so it's gone.
   const pop=document.createElement('div');
