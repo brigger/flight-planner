@@ -944,7 +944,7 @@ const applyView=v=>{
   }
   document.querySelectorAll('#view-seg button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
   if(isMap) renderRouteMap();
-  else stopFly();
+  else if(window._flyStop) window._flyStop();   // lazy — fly vars are declared further down
 };
 document.getElementById('map-close').addEventListener('click',()=>{
   applyView('view-nav');
@@ -1117,6 +1117,7 @@ function stopFly(){
   const hud=document.getElementById('fly-hud');if(hud)hud.hidden=true;
   const b=document.getElementById('map-fly');if(b){b.classList.remove('on');b.textContent='Fly ▶';}
 }
+window._flyStop=stopFly;
 document.getElementById('map-fly').addEventListener('click',()=>{_watchId==null?startFly():stopFly();});
 document.getElementById('map-locate').addEventListener('click',()=>{
   _followFly=true;
