@@ -1013,7 +1013,7 @@ document.getElementById('map-aip-btn').addEventListener('click',()=>{
   else localStorage.removeItem(OPENAIP_KEY_LS);
   aipRefresh();
 });
-function renderRouteMap(){
+function renderRouteMap(fit){
   const hint=document.getElementById('map-hint');
   if(!window.L){
     hint.textContent='Loading map…';
@@ -1061,7 +1061,8 @@ function renderRouteMap(){
     g.push(m);
   });
   _routeLayer=L.layerGroup(g).addTo(_map);
-  if(_watchId==null) _map.fitBounds(line.getBounds(),{padding:[36,36]});
+  // Fit only when the view opens — edits must keep the pilot's zoom/pan.
+  if(fit!==false&&_watchId==null) _map.fitBounds(line.getBounds(),{padding:[36,36]});
 }
 
 /* ═══ FLY MODE — live position with plane symbol + GS / ALT / TRK HUD.
@@ -1206,7 +1207,7 @@ async function onWpDragEnd(idx,marker){
   document.getElementById('map-hint').textContent=place
     ? 'Snapped to '+place.name+' — NAV Plan and Route Planner updated.'
     : (doSnap?'No nearby place found — kept the dragged position.':'Waypoint moved — NAV Plan and Route Planner updated.');
-  renderRouteMap();
+  renderRouteMap(false);
 }
 
 // Shared by drag / insert / delete: recompute DIST + HDG (true track, no
@@ -1250,7 +1251,7 @@ async function addWaypointAt(latlng){
   _refreshLegGeom(j);_refreshLegGeom(j+1);
   saveState();renderWP();
   document.getElementById('map-hint').textContent=(name?'Added '+name:'Added waypoint')+' — NAV Plan and Route Planner updated.';
-  renderRouteMap();
+  renderRouteMap(false);
 }
 /* ═══ DELETE — double-click / right-click / long-press (iOS Safari fires
    no contextmenu on markers) an intermediate waypoint. DEP/DEST stay. ═══ */
@@ -1265,7 +1266,7 @@ function wireWpDelete(m,p){
     _refreshLegGeom(p.idx);
     saveState();renderWP();
     document.getElementById('map-hint').textContent='Waypoint removed — NAV Plan and Route Planner updated.';
-    renderRouteMap();
+    renderRouteMap(false);
   };
   m.on('dblclick',e=>{L.DomEvent.stop(e);ask();});
   m.on('contextmenu',e=>{L.DomEvent.stop(e);ask();});
