@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=15">
+<link rel="stylesheet" href="navplan.css?v=16">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -1265,7 +1265,11 @@ async function onWpDragEnd(idx,marker){
   // Pulse the dot itself while the lookup runs — the toast alone is missable.
   const mel=marker.getElement();
   if(mel) mel.classList.add('wp-snapping');
-  mapToast(doSnap?'Snapping to nearest place…':'Moving waypoint…');
+  // Progress lives at the point itself; the toast is only for the result.
+  if(doSnap){
+    marker.unbindTooltip();
+    marker.bindTooltip('Snapping — finding location…',{permanent:true,direction:'top',offset:[0,-8],className:'wp-snap-tip'}).openTooltip();
+  }
   const place=doSnap?await snapNearestPlace(lat,lon):null;
   if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
   r.coord=fmtCoord(lat,lon);
@@ -1317,9 +1321,9 @@ function _routeInsertIndex(p){
 async function addWaypointAt(latlng){
   let lat=latlng.lat,lon=latlng.lng;
   const doSnap=snapEnabled();
-  mapToast(doSnap?'Adding waypoint — snapping to nearest place…':'Adding waypoint…');
   const tmp=L.marker([lat,lon],{interactive:false,
     icon:L.divIcon({className:'wp-dot wp-snapping',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(_map);
+  if(doSnap) tmp.bindTooltip('Snapping — finding location…',{permanent:true,direction:'top',offset:[0,-8],className:'wp-snap-tip'}).openTooltip();
   const place=doSnap?await snapNearestPlace(lat,lon):null;
   tmp.remove();
   let name='';
