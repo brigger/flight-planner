@@ -445,6 +445,10 @@ function renderWP(){
   const tb=document.getElementById('wp-body');
   tb.innerHTML=buildRouteHTML()+totalsRow()+altnRow();
   wireRowInputs();
+  // Route changed while the Map view is open (Clear, New, import, plan
+  // load) → the map must follow without a view round-trip.
+  const mp=document.getElementById('map-pane');
+  if(mp&&!mp.hidden&&window.L) renderRouteMap(false);
 }
 
 function wireRowInputs(){
