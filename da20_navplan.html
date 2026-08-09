@@ -24,7 +24,7 @@
     </div>
     <span class="sep">|</span>
     <button id="btn-import">Import…</button>
-    <button id="btn-gpx" title="Download the route as GPX — SkyDemon imports it via Open/Share">Export GPX</button>
+    <button id="btn-gpx" title="Share the route as GPX — pick SkyDemon in the share sheet, or save the file">Share GPX</button>
     <button id="btn-clear">Clear form</button>
     <button id="btn-print" class="primary">Print</button>
     <span class="grow"></span>
@@ -891,12 +891,26 @@ document.getElementById('btn-gpx').addEventListener('click',()=>{
     +'  <rte>\n    <name>'+escX(name)+'</name>\n'
     +pts.map(p=>'    <rtept lat="'+p.ll[0].toFixed(6)+'" lon="'+p.ll[1].toFixed(6)+'"><name>'+escX(p.name)+'</name></rtept>').join('\n')
     +'\n  </rte>\n</gpx>\n';
+  const fname=(name.replace(/[^\w\-. ]+/g,'_').trim()||'route')+'.gpx';
+  const file=new File([gpx],fname,{type:'application/gpx+xml'});
+  // Native share sheet first — on iPad/Mac Safari SkyDemon appears as a
+  // target ("Open in SkyDemon" / Save to Files). Fallback: plain download.
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:name}).catch(e=>{
+      if(e&&e.name==='AbortError') return;      // user closed the sheet
+      _gpxDownload(gpx,fname);
+    });
+    return;
+  }
+  _gpxDownload(gpx,fname);
+});
+function _gpxDownload(gpx,fname){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([gpx],{type:'application/gpx+xml'}));
-  a.download=(name.replace(/[^\w\-. ]+/g,'_').trim()||'route')+'.gpx';
+  a.download=fname;
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
-});
+}
 
 
 /* ═══ View toggle (NAV Plan / Endurance) ═══ */
