@@ -1338,12 +1338,14 @@ async function addWaypointAt(latlng){
   const doSnap=snapEnabled();
   const tmp=L.marker([lat,lon],{interactive:false,
     icon:L.divIcon({className:'wp-dot wp-snapping',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(_map);
-  if(doSnap) tmp.bindTooltip('Snapping — finding location…',{permanent:true,direction:'top',offset:[0,-8],className:'wp-snap-tip'}).openTooltip();
-  const place=doSnap?await snapNearestPlace(lat,lon):null;
+  tmp.bindTooltip(doSnap?'Snapping — finding location…':'Finding name…',{permanent:true,direction:'top',offset:[0,-8],className:'wp-snap-tip'}).openTooltip();
+  // The name lookup always runs — Snap off only means the position stays put.
+  const place=await snapNearestPlace(lat,lon);
   tmp.remove();
   let name='';
-  if(place){lat=place.lat;lon=place.lon;name=place.name;}
+  if(place){name=place.name;if(doSnap){lat=place.lat;lon=place.lon;}}
   const coord=fmtCoord(lat,lon);
+  if(!name) name=coord;              // never leave the NAV Plan row unnamed
   const emptyRow=r=>!((r.wp||'').trim()||(r.ident||'').trim()||(r.coord||'').trim());
   const n=state.route.length;
   let what=null;
