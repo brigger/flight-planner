@@ -6,7 +6,7 @@
 <title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=16">
+<link rel="stylesheet" href="navplan.css?v=17">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -174,6 +174,7 @@
           <div class="toldg-nums"><span>Over 50 ft<b id="toldg-ld-ob">—</b></span><span>Roll<b id="toldg-ld-gr">—</b></span></div>
         </div>
       </div>
+      <div class="fuel-map-wrap"><div id="fuel-map"></div></div>
     </div>
 
   </div>
@@ -449,6 +450,7 @@ function renderWP(){
   // load) → the map must follow without a view round-trip.
   const mp=document.getElementById('map-pane');
   if(mp&&!mp.hidden&&window.L) renderRouteMap(false);
+  if(sheetEl.classList.contains('view-fuel')&&window.fuelMapRender) window.fuelMapRender();
 }
 
 function wireRowInputs(){
@@ -940,6 +942,7 @@ const applyView=v=>{
   document.querySelectorAll('#view-seg button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
   if(isMap) renderRouteMap();
   else if(window._flyStop) window._flyStop();   // lazy — fly vars are declared further down
+  if(v==='view-fuel'&&window.fuelMapRender) window.fuelMapRender();
 };
 document.getElementById('map-close').addEventListener('click',()=>{
   applyView('view-nav');
@@ -1142,6 +1145,41 @@ function stopFly(){
   const b=document.getElementById('map-fly');if(b){b.classList.remove('on');b.textContent='Fly ▶';}
 }
 window._flyStop=stopFly;
+/* ═══ MINI ROUTE MAP on the Endurance half — non-interactive, kept in sync
+   with the route; prints in the space below the TO/LDG charts. ═══ */
+let _fmap=null,_froute=null;
+function fuelMapRender(){
+  const el=document.getElementById('fuel-map');
+  if(!el) return;
+  if(!window.L){window.addEventListener('load',()=>fuelMapRender(),{once:true});return;}
+  if(!_fmap){
+    _fmap=L.map('fuel-map',{zoomControl:false,attributionControl:false,dragging:false,
+      scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false});
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:17}).addTo(_fmap);
+    const key=localStorage.getItem(OPENAIP_KEY_LS)||'';
+    if(key&&localStorage.getItem(AIR_LS)!=='0'){
+      L.tileLayer('https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey='+encodeURIComponent(key),
+        {maxZoom:17,maxNativeZoom:14,opacity:0.9}).addTo(_fmap);
+    }
+  }
+  if(_froute){_froute.remove();_froute=null;}
+  const pts=[];
+  state.route.forEach(r=>{const ll=parseCoordStr(r.coord);if(ll)pts.push(ll);});
+  const g=[];
+  if(pts.length>=2) g.push(L.polyline(pts,{color:'#d633c0',weight:3,opacity:0.9}));
+  pts.forEach(ll=>g.push(L.circleMarker(ll,{radius:3.5,color:'#7a1f6d',weight:1.5,fillColor:'#fff',fillOpacity:1})));
+  if(g.length) _froute=L.layerGroup(g).addTo(_fmap);
+  setTimeout(()=>{
+    _fmap.invalidateSize();
+    if(pts.length>=2) _fmap.fitBounds(L.latLngBounds(pts),{padding:[12,12]});
+    else if(pts.length===1) _fmap.setView(pts[0],10);
+    else _fmap.setView([46.8,8.2],8);
+  },0);
+}
+window.fuelMapRender=fuelMapRender;
+window.addEventListener('beforeprint',()=>{if(window.L)fuelMapRender();});
+if(sheetEl.classList.contains('view-fuel')) setTimeout(fuelMapRender,0);
+
 // Fly mode never survives leaving the page — Safari's back/forward cache
 // would otherwise restore the frozen HUD (and keep the GPS watch alive).
 window.addEventListener('pagehide',()=>{try{stopFly();}catch(e){}});
