@@ -254,7 +254,8 @@ window.velisWp = (function(){
     <label>First name<input id="plan-account-first" type="text" autocomplete="given-name"></label>
     <label>Last name<input id="plan-account-last" type="text" autocomplete="family-name"></label>
     <label>Email<input id="plan-account-email" type="email" disabled></label>
-    <p class="hint">Your name appears on sign-in pages and pre-fills the NAV Plan's PILOT field. The email is the account and can't be changed.</p>
+    <label>openAIP map key — this device<input id="plan-account-aip" type="text" autocomplete="off" placeholder="airspace overlay on the Map view (openaip.net)"></label>
+    <p class="hint">Your name appears on sign-in pages and pre-fills the NAV Plan's PILOT field. The email is the account and can't be changed. The openAIP key stays on this device.</p>
     <div class="plan-modal-actions">
       <button type="button" id="plan-account-cancel">Cancel</button>
       <span class="spacer"></span>
@@ -572,6 +573,7 @@ window.velisWp = (function(){
     document.getElementById('plan-account-first').value=currentUser.first_name||'';
     document.getElementById('plan-account-last').value=currentUser.last_name||'';
     document.getElementById('plan-account-email').value=currentUser.email||'';
+    document.getElementById('plan-account-aip').value=localStorage.getItem(OPENAIP_KEY)||'';
     const err=document.getElementById('plan-account-err');
     err.textContent='';err.classList.remove('show');
     document.getElementById('plan-account-modal').hidden=false;
@@ -584,6 +586,9 @@ window.velisWp = (function(){
     const err=document.getElementById('plan-account-err');
     err.textContent='';err.classList.remove('show');
     if(!first||!last){err.textContent='First and last name are required.';err.classList.add('show');return;}
+    // Device-local — applied even if the name save fails.
+    const aip=(document.getElementById('plan-account-aip').value||'').trim();
+    if(aip) safeSetItem(OPENAIP_KEY,aip); else localStorage.removeItem(OPENAIP_KEY);
     const btn=document.getElementById('plan-account-save');btn.disabled=true;
     try{
       const d=await api('/auth/me',{method:'PUT',body:JSON.stringify({first_name:first,last_name:last})});

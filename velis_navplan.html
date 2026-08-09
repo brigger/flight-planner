@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=8">
+<link rel="stylesheet" href="navplan.css?v=9">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -188,11 +188,19 @@
     <div class="map-bar">
       <span id="map-hint" class="map-hint"></span>
       <div class="map-actions">
+        <button type="button" id="map-locate" class="map-aip" title="Go to current location">➤</button>
+        <button type="button" id="map-fly" class="map-aip" title="Fly mode — live position with GS / altitude">Fly ▶</button>
         <button type="button" id="map-aip-btn" class="map-aip"></button>
         <button type="button" id="map-close" class="map-aip" title="Back to the NAV Plan">✕ Close</button>
       </div>
     </div>
     <div id="route-map"></div>
+    <div class="fly-hud" id="fly-hud" hidden>
+      <div class="cell"><div class="v" id="hud-gs">—</div><div class="l">GS kt</div></div>
+      <div class="cell"><div class="v" id="hud-alt">—</div><div class="l">Alt ft GPS</div></div>
+      <div class="cell"><div class="v" id="hud-trk">—</div><div class="l">Track</div></div>
+      <div class="cell"><div class="v" id="hud-dest">—</div><div class="l">Dest nm</div></div>
+    </div>
   </div>
 </div>
 
@@ -936,6 +944,7 @@ const applyView=v=>{
   }
   document.querySelectorAll('#view-seg button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
   if(isMap) renderRouteMap();
+  else stopFly();
 };
 document.getElementById('map-close').addEventListener('click',()=>{
   applyView('view-nav');
@@ -968,7 +977,9 @@ function parseCoordStr(s){
 function aipRefresh(){
   const btn=document.getElementById('map-aip-btn');
   const key=localStorage.getItem(OPENAIP_KEY_LS)||'';
-  btn.textContent=key?'Airspaces: openAIP on · change key':'Airspaces: add free openAIP key…';
+  // Once a key is set it is managed in the Account… dialog — keep the map bar clean.
+  btn.hidden=!!key;
+  btn.textContent='Airspaces: add free openAIP key…';
   if(_map){
     if(_aipLayer){_aipLayer.remove();_aipLayer=null;}
     if(key){
@@ -1006,6 +1017,7 @@ function renderRouteMap(){
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       {maxZoom:17,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(_map);
     aipRefresh();
+    _map.on('dragstart',()=>{_followFly=false;});
   }
   setTimeout(()=>_map.invalidateSize(),0);
   if(_routeLayer){_routeLayer.remove();_routeLayer=null;}
@@ -1028,8 +1040,87 @@ function renderRouteMap(){
       .bindTooltip(p.label,{permanent:i===0||i===pts.length-1,direction:'top',offset:[0,-6]}));
   });
   _routeLayer=L.layerGroup(g).addTo(_map);
-  _map.fitBounds(line.getBounds(),{padding:[36,36]});
+  if(_watchId==null) _map.fitBounds(line.getBounds(),{padding:[36,36]});
 }
+
+/* ═══ FLY MODE — live position with plane symbol + GS / ALT / TRK HUD.
+   Data comes from the browser geolocation (GPS on iPad): speed in m/s,
+   altitude in metres (GPS, not pressure altitude!), heading in °true —
+   heading is only reported while moving. Dragging the map pauses the
+   follow; the ➤ button resumes it. ═══ */
+const _KT=1.943844,_FT=3.28084;
+let _watchId=null,_flyMarker=null,_flyAcc=null,_followFly=true,_lastTrk=0,_locMarker=null;
+function _planeIcon(deg){
+  return L.divIcon({className:'fly-plane',iconSize:[40,40],iconAnchor:[20,20],
+    html:'<svg width="40" height="40" viewBox="0 0 24 24" style="transform:rotate('+deg+'deg)"><path d="M12 1.5 L13.8 8.5 L22 11.5 L13.9 12.6 L13.7 17.2 L16.3 19.6 L12 18.4 L7.7 19.6 L10.3 17.2 L10.1 12.6 L2 11.5 L10.2 8.5 Z" fill="#185FA5" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/></svg>'});
+}
+function _distNm(a,b){
+  const R=3440.065,rad=Math.PI/180;
+  const dLat=(b[0]-a[0])*rad,dLon=(b[1]-a[1])*rad;
+  const q=Math.sin(dLat/2)**2+Math.cos(a[0]*rad)*Math.cos(b[0]*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(q));
+}
+function _destCoord(){
+  for(let i=state.route.length-1;i>=0;i--){
+    const ll=parseCoordStr(state.route[i].coord);
+    if(ll) return ll;
+  }
+  return null;
+}
+function _hudSet(id,v){document.getElementById(id).textContent=v;}
+function _onFix(pos){
+  const c=pos.coords,ll=[c.latitude,c.longitude];
+  if(c.heading!=null&&isFinite(c.heading)&&(c.speed==null||c.speed>0.5)) _lastTrk=c.heading;
+  if(!_flyMarker){
+    _flyMarker=L.marker(ll,{icon:_planeIcon(_lastTrk),zIndexOffset:1000}).addTo(_map);
+    _flyAcc=L.circle(ll,{radius:c.accuracy||0,color:'#185FA5',weight:1,opacity:0.4,fillOpacity:0.08}).addTo(_map);
+    _map.setView(ll,Math.max(_map.getZoom(),11));
+  }else{
+    _flyMarker.setLatLng(ll);_flyMarker.setIcon(_planeIcon(_lastTrk));
+    _flyAcc.setLatLng(ll);_flyAcc.setRadius(c.accuracy||0);
+    if(_followFly)_map.panTo(ll,{animate:true,duration:0.5});
+  }
+  _hudSet('hud-gs',(c.speed!=null&&isFinite(c.speed))?String(Math.round(c.speed*_KT)):'—');
+  _hudSet('hud-alt',(c.altitude!=null&&isFinite(c.altitude))?Math.round(c.altitude*_FT).toLocaleString():'—');
+  _hudSet('hud-trk',(c.heading!=null&&isFinite(c.heading))?String(Math.round(c.heading)).padStart(3,'0')+'°':'—');
+  const d=_destCoord();
+  if(d){const nm=_distNm(ll,d);_hudSet('hud-dest',nm>=10?String(Math.round(nm)):nm.toFixed(1));}
+  else _hudSet('hud-dest','—');
+}
+function _onFixErr(e){
+  document.getElementById('map-hint').textContent='⚠ Location unavailable: '+(e&&e.message||'permission denied');
+  stopFly();
+}
+function startFly(){
+  if(_watchId!=null) return;
+  if(!window.L||!_map){document.getElementById('map-hint').textContent='Map is still loading — try again in a second.';return;}
+  if(!navigator.geolocation){alert('This device/browser has no location service.');return;}
+  _followFly=true;
+  document.getElementById('fly-hud').hidden=false;
+  const b=document.getElementById('map-fly');b.classList.add('on');b.textContent='■ Stop';
+  _watchId=navigator.geolocation.watchPosition(_onFix,_onFixErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+}
+function stopFly(){
+  if(_watchId!=null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
+  if(_flyMarker){_flyMarker.remove();_flyMarker=null;}
+  if(_flyAcc){_flyAcc.remove();_flyAcc=null;}
+  const hud=document.getElementById('fly-hud');if(hud)hud.hidden=true;
+  const b=document.getElementById('map-fly');if(b){b.classList.remove('on');b.textContent='Fly ▶';}
+}
+document.getElementById('map-fly').addEventListener('click',()=>{_watchId==null?startFly():stopFly();});
+document.getElementById('map-locate').addEventListener('click',()=>{
+  _followFly=true;
+  if(_watchId!=null&&_flyMarker){_map.panTo(_flyMarker.getLatLng());return;}
+  if(!window.L||!_map){document.getElementById('map-hint').textContent='Map is still loading — try again in a second.';return;}
+  if(!navigator.geolocation){alert('This device/browser has no location service.');return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const ll=[pos.coords.latitude,pos.coords.longitude];
+    if(_locMarker)_locMarker.remove();
+    _locMarker=L.circleMarker(ll,{radius:7,color:'#fff',weight:2,fillColor:'#185FA5',fillOpacity:1}).addTo(_map);
+    _map.setView(ll,Math.max(_map.getZoom(),12));
+  },e=>{document.getElementById('map-hint').textContent='⚠ Location unavailable: '+(e&&e.message||'permission denied');},
+  {enableHighAccuracy:true,timeout:15000});
+});
 
 /* ═════════════════════════════════════════════════════════════════════
    BUNDLE SYNC — plan_sync.js owns the Save/Load UI; we just hook its
@@ -1477,7 +1568,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=28" defer></script>
+<script src="plan_sync.js?v=29" defer></script>
 
 </body>
 </html>
