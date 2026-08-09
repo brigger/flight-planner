@@ -1034,6 +1034,9 @@ function renderRouteMap(){
     _map.on('dblclick',()=>clearTimeout(_addClickTimer));
   }
   setTimeout(()=>_map.invalidateSize(),0);
+  // The HUD belongs to fly mode only — re-assert on every render in case a
+  // stop path was skipped (bfcache restore, view switches, errors).
+  document.getElementById('fly-hud').hidden=(_watchId==null);
   if(_routeLayer){_routeLayer.remove();_routeLayer=null;}
   const wpLabel=(r,i)=>((r.wp||'').trim()||(r.ident||'').trim()||('WP '+(i+1)));
   const pts=[];let missing=0;
