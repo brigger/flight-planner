@@ -271,3 +271,6 @@ body.fly-ui.fly-split .map-pane{margin:0;flex:1 1 auto;min-width:0;max-width:non
 body.fly-ui.fly-split .sheet{flex:0 0 auto;}
 .toolbar .fly-btn{border-color:#3B6D11;color:#27500A;background:#EAF3DE;font-weight:700;}
 .toolbar .fly-btn:hover{background:#3B6D11;color:#fff;}
+/* Center the fly switcher — iOS fullscreen controls sit top-left */
+#fly-bar{justify-content:center;position:relative;}
+#fly-bar .fly-right{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;gap:10px;align-items:center;}
