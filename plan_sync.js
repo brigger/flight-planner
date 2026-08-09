@@ -395,7 +395,7 @@ window.velisWp = (function(){
     el.innerHTML=parts.join('');
     el.classList.toggle('dirty',dirty);
     const link=el.querySelector('[data-signin-link]');
-    if(link) link.addEventListener('click',openAuthModal);
+    if(link) link.addEventListener('click',()=>openAuthModal());
   }
 
   function updateFabDirty(){
@@ -758,7 +758,9 @@ window.velisWp = (function(){
 
   function openAuthModal(tab){
     const cached=getCachedUser();
-    const defaultTab = tab || 'signin';
+    // Guard against being wired as a raw event handler — anything that isn't
+    // an explicit tab name means "sign in".
+    const defaultTab = (tab==='register'||tab==='signin') ? tab : 'signin';
     setAuthTab(defaultTab);
     clearAuthError();
     hideAuthOk();
