@@ -24,6 +24,7 @@
     </div>
     <span class="sep">|</span>
     <button id="btn-import">Import…</button>
+    <button id="btn-gpx" title="Download the route as GPX — SkyDemon imports it via Open/Share">Export GPX</button>
     <button id="btn-clear">Clear form</button>
     <button id="btn-print" class="primary">Print</button>
     <span class="grow"></span>
@@ -870,6 +871,33 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
   refreshEndurance();
 });
 document.getElementById('btn-print').addEventListener('click',()=>window.print());
+
+/* ═══ GPX EXPORT — SkyDemon (and most EFBs) import GPX routes. Only rows
+   with coordinates are included; names come from the WAYPOINT column. ═══ */
+document.getElementById('btn-gpx').addEventListener('click',()=>{
+  const pts=[];
+  state.route.forEach((r,i)=>{
+    const ll=parseCoordStr(r.coord);
+    if(ll) pts.push({ll,name:(r.wp||'').trim()||(r.ident||'').trim()||('WP '+(i+1))});
+  });
+  if(pts.length<2){
+    alert('Need at least two waypoints with coordinates to export.\nImport from Sky Demon with coordinates, or add points on the Map.');
+    return;
+  }
+  const escX=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const name=(state.meta&&state.meta.name)||((pts[0].name||'Route')+' - '+(pts[pts.length-1].name||''));
+  const gpx='<?xml version="1.0" encoding="UTF-8"?>\n'
+    +'<gpx version="1.1" creator="Flight Planner (brigger.com)" xmlns="http://www.topografix.com/GPX/1/1">\n'
+    +'  <rte>\n    <name>'+escX(name)+'</name>\n'
+    +pts.map(p=>'    <rtept lat="'+p.ll[0].toFixed(6)+'" lon="'+p.ll[1].toFixed(6)+'"><name>'+escX(p.name)+'</name></rtept>').join('\n')
+    +'\n  </rte>\n</gpx>\n';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([gpx],{type:'application/gpx+xml'}));
+  a.download=(name.replace(/[^\w\-. ]+/g,'_').trim()||'route')+'.gpx';
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+});
+
 
 /* ═══ View toggle (NAV Plan / Endurance) ═══ */
 const VIEW_KEY='velis_navplan_view';
