@@ -892,10 +892,17 @@ document.getElementById('btn-gpx').addEventListener('click',()=>{
     +pts.map(p=>'    <rtept lat="'+p.ll[0].toFixed(6)+'" lon="'+p.ll[1].toFixed(6)+'"><name>'+escX(p.name)+'</name></rtept>').join('\n')
     +'\n  </rte>\n</gpx>\n';
   const fname=(name.replace(/[^\w\-. ]+/g,'_').trim()||'route')+'.gpx';
-  const file=new File([gpx],fname,{type:'application/gpx+xml'});
-  // Native share sheet first — on iPad/Mac Safari SkyDemon appears as a
-  // target ("Open in SkyDemon" / Save to Files). Fallback: plain download.
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
+  // Native share sheet first — WebKit only lets an allowlist of MIME types
+  // through canShare (gpx+xml is rejected), so probe from most to least
+  // specific; the .gpx filename is what the receiving app keys on.
+  let file=null;
+  if(navigator.canShare){
+    for(const t of ['application/gpx+xml','application/xml','text/xml','text/plain']){
+      const f=new File([gpx],fname,{type:t});
+      if(navigator.canShare({files:[f]})){file=f;break;}
+    }
+  }
+  if(file){
     navigator.share({files:[file],title:name}).catch(e=>{
       if(e&&e.name==='AbortError') return;      // user closed the sheet
       _gpxDownload(gpx,fname);
