@@ -1315,7 +1315,7 @@ function mapToast(msg){
   _toastTimer=setTimeout(()=>el.classList.remove('show'),2600);
   document.getElementById('map-hint').textContent=msg;
 }
-function _routeInsertIndex(p){
+function _routeInsertPlan(p){
   const n=state.route.length;
   let best=Math.max(1,n-1),min=Infinity,prev=null;
   for(let i=0;i<n;i++){
@@ -1327,7 +1327,11 @@ function _routeInsertIndex(p){
     }
     prev=c;
   }
-  return Math.min(Math.max(best,1),Math.max(1,n-1));
+  // Beyond the current destination it's cheaper to EXTEND — the tapped point
+  // becomes the new DEST, keeping "last drawn = ending point".
+  const lastC=parseCoordStr(state.route[n-1].coord);
+  if(lastC&&_distNm(lastC,p)<min) return {idx:n,extend:true};
+  return {idx:Math.min(Math.max(best,1),Math.max(1,n-1)),extend:false};
 }
 async function addWaypointAt(latlng){
   let lat=latlng.lat,lon=latlng.lng;
@@ -1339,13 +1343,31 @@ async function addWaypointAt(latlng){
   tmp.remove();
   let name='';
   if(place){lat=place.lat;lon=place.lon;name=place.name;}
-  const j=_routeInsertIndex([lat,lon]);
-  const row={...EMPTY_WP(),wp:name,coord:fmtCoord(lat,lon),
-             alt:(state.route[j-1]&&state.route[j-1].alt)||''};
-  state.route.splice(j,0,row);
-  _refreshLegGeom(j);_refreshLegGeom(j+1);
+  const coord=fmtCoord(lat,lon);
+  const emptyRow=r=>!((r.wp||'').trim()||(r.ident||'').trim()||(r.coord||'').trim());
+  const n=state.route.length;
+  let what=null;
+  if(emptyRow(state.route[0])){
+    // First drawn point is the departure…
+    Object.assign(state.route[0],{wp:name,coord});
+    _refreshLegGeom(1);
+    what='Departure';
+  }else if(emptyRow(state.route[n-1])){
+    // …the next one the destination…
+    Object.assign(state.route[n-1],{wp:name,coord});
+    _refreshLegGeom(n-1);
+    what='Destination';
+  }else{
+    // …then extend (new DEST) or insert mid-route, whichever is cheaper.
+    const plan=_routeInsertPlan([lat,lon]);
+    const row={...EMPTY_WP(),wp:name,coord,
+               alt:(state.route[plan.idx-1]&&state.route[plan.idx-1].alt)||''};
+    state.route.splice(plan.idx,0,row);
+    _refreshLegGeom(plan.idx);_refreshLegGeom(plan.idx+1);
+    if(plan.extend) what='New destination';
+  }
   saveState();renderWP();
-  mapToast((name?'Added '+name:'Added waypoint')+' — NAV Plan and Route Planner updated.');
+  mapToast((what?what+': ':'Added ')+(name||'waypoint')+' — NAV Plan and Route Planner updated.');
   renderRouteMap(false);
 }
 /* ═══ DELETE — double-click / right-click / long-press (iOS Safari fires
