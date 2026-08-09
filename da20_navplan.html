@@ -957,6 +957,12 @@ function renderRouteMap(){
       {maxZoom:17,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(_map);
     aipRefresh();
     _map.on('dragstart',()=>{_followFly=false;});
+    _map.on('click',e=>{
+      if(_watchId!=null) return;               // fly mode — no planning edits
+      clearTimeout(_addClickTimer);
+      _addClickTimer=setTimeout(()=>addWaypointAt(e.latlng),300);
+    });
+    _map.on('dblclick',()=>clearTimeout(_addClickTimer));
   }
   setTimeout(()=>_map.invalidateSize(),0);
   if(_routeLayer){_routeLayer.remove();_routeLayer=null;}
@@ -979,6 +985,7 @@ function renderRouteMap(){
       icon:L.divIcon({className:'wp-dot',iconSize:[14,14],iconAnchor:[7,7]})})
       .bindTooltip(p.label,{permanent:k===0||k===pts.length-1,direction:'top',offset:[0,-8]});
     m.on('dragend',()=>onWpDragEnd(p.idx,m));
+    wireWpDelete(m,p);
     g.push(m);
   });
   _routeLayer=L.layerGroup(g).addTo(_map);
@@ -1110,15 +1117,7 @@ async function onWpDragEnd(idx,marker){
   const place=await snapNearestPlace(lat,lon);
   if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
   r.coord=fmtCoord(lat,lon);
-  // Refresh DIST + HDG (true track, no wind) of the legs into and out of it.
-  const upd=i=>{
-    if(i<=0||i>=state.route.length) return;
-    const a=parseCoordStr(state.route[i-1].coord),b=parseCoordStr(state.route[i].coord);
-    if(!a||!b) return;
-    state.route[i].dist=String(Math.ceil(_distNm(a,b)));
-    state.route[i].hdg=String(Math.round(_bearing(a,b))).padStart(3,'0');
-  };
-  upd(idx);upd(idx+1);
+  _refreshLegGeom(idx);_refreshLegGeom(idx+1);
   saveState();
   renderWP();
   document.getElementById('map-hint').textContent=place
@@ -1126,6 +1125,75 @@ async function onWpDragEnd(idx,marker){
     : 'No nearby place found — kept the dragged position.';
   renderRouteMap();
 }
+
+// Shared by drag / insert / delete: recompute DIST + HDG (true track, no
+// wind) of the leg arriving at row i, when both endpoints have coords.
+function _refreshLegGeom(i){
+  if(i<=0||i>=state.route.length) return;
+  const a=parseCoordStr(state.route[i-1].coord),b=parseCoordStr(state.route[i].coord);
+  if(!a||!b) return;
+  state.route[i].dist=String(Math.ceil(_distNm(a,b)));
+  state.route[i].hdg=String(Math.round(_bearing(a,b))).padStart(3,'0');
+}
+/* ═══ CLICK-TO-INSERT — a tap on empty map adds a waypoint at the spot
+   (snapped like a drag) at the minimal-detour position in the route.
+   The departure stays first, the destination last. ═══ */
+let _addClickTimer=null;
+function _routeInsertIndex(p){
+  const n=state.route.length;
+  let best=Math.max(1,n-1),min=Infinity,prev=null;
+  for(let i=0;i<n;i++){
+    const c=parseCoordStr(state.route[i].coord);
+    if(!c) continue;
+    if(prev){
+      const d=_distNm(prev,p)+_distNm(p,c)-_distNm(prev,c);
+      if(d<min){min=d;best=i;}
+    }
+    prev=c;
+  }
+  return Math.min(Math.max(best,1),Math.max(1,n-1));
+}
+async function addWaypointAt(latlng){
+  let lat=latlng.lat,lon=latlng.lng;
+  document.getElementById('map-hint').textContent='Adding waypoint — snapping to nearest place…';
+  const place=await snapNearestPlace(lat,lon);
+  let name='';
+  if(place){lat=place.lat;lon=place.lon;name=place.name;}
+  const j=_routeInsertIndex([lat,lon]);
+  const row={...EMPTY_WP(),wp:name,coord:fmtCoord(lat,lon),
+             alt:(state.route[j-1]&&state.route[j-1].alt)||''};
+  state.route.splice(j,0,row);
+  _refreshLegGeom(j);_refreshLegGeom(j+1);
+  saveState();renderWP();
+  document.getElementById('map-hint').textContent=(name?'Added '+name:'Added waypoint')+' — NAV Plan and Route Planner updated.';
+  renderRouteMap();
+}
+/* ═══ DELETE — double-click / right-click / long-press (iOS Safari fires
+   no contextmenu on markers) an intermediate waypoint. DEP/DEST stay. ═══ */
+function wireWpDelete(m,p){
+  if(p.idx===0||p.idx===state.route.length-1) return;
+  let lpTimer=null,lpGuard=0;
+  const ask=()=>{
+    if(Date.now()<lpGuard) return;
+    lpGuard=Date.now()+600;
+    if(!confirm('Remove waypoint "'+(p.label||'')+'" from the route?')) return;
+    state.route.splice(p.idx,1);
+    _refreshLegGeom(p.idx);
+    saveState();renderWP();
+    document.getElementById('map-hint').textContent='Waypoint removed — NAV Plan and Route Planner updated.';
+    renderRouteMap();
+  };
+  m.on('dblclick',e=>{L.DomEvent.stop(e);ask();});
+  m.on('contextmenu',e=>{L.DomEvent.stop(e);ask();});
+  m.on('add',()=>{
+    const el=m.getElement();
+    if(!el) return;
+    el.addEventListener('touchstart',()=>{lpTimer=setTimeout(ask,600);},{passive:true});
+    el.addEventListener('touchmove',()=>clearTimeout(lpTimer),{passive:true});
+    el.addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
+  });
+}
+
 
 
 /* ═════════════════════════════════════════════════════════════════════
