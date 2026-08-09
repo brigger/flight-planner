@@ -1228,6 +1228,7 @@ function startFly(){
   document.getElementById('fly-clock').textContent=_nowHM();
   _flyClockT=setInterval(()=>{document.getElementById('fly-clock').textContent=_nowHM();},1000);
   applyFlyView('map');
+  _enterFullscreen();
 }
 function stopFly(){
   if(_watchId!=null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
@@ -1238,6 +1239,7 @@ function stopFly(){
   const fb=document.getElementById('fly-bar');if(fb)fb.hidden=true;
   if(document.body.classList.contains('fly-ui')){
     document.body.classList.remove('fly-ui','fly-split');
+    _exitFullscreen();
     applyView(localStorage.getItem(VIEW_KEY)||'view-nav');
   }
 }
@@ -1245,6 +1247,17 @@ window._flyStop=stopFly;
 /* ═══ FLY-MODE UI — cockpit layout: nav/toolbar hidden, top switcher for
    NAV Plan / Split / Map, tap-to-time for START/END/ATO, auto-ATO on
    waypoint passage. ═══ */
+// True fullscreen on iPad/desktop while flying (webkit prefix for Safari).
+function _enterFullscreen(){
+  const el=document.documentElement;
+  const fn=el.requestFullscreen||el.webkitRequestFullscreen;
+  if(fn){try{const r=fn.call(el);if(r&&r.catch)r.catch(()=>{});}catch(e){}}
+}
+function _exitFullscreen(){
+  if(!(document.fullscreenElement||document.webkitFullscreenElement)) return;
+  const fn=document.exitFullscreen||document.webkitExitFullscreen;
+  if(fn){try{const r=fn.call(document);if(r&&r.catch)r.catch(()=>{});}catch(e){}}
+}
 function _nowHM(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
 let _flyView='map',_flyClockT=null;
 function applyFlyView(v){
