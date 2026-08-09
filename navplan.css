@@ -246,3 +246,7 @@ textarea{border:none;background:transparent;outline:none;padding:0;margin:0;resi
 .map-snap{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:11.5px;border:1px solid var(--bd2);background:#fff;color:var(--tx2);border-radius:6px;padding:5px 10px;cursor:pointer;user-select:none;}
 .map-snap input{-webkit-appearance:checkbox;appearance:checkbox;width:14px;height:14px;margin:0;accent-color:var(--blue);}
 .map-snap:has(input:checked){background:var(--blue);border-color:var(--blue);color:#fff;}
+.map-toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:6;background:rgba(18,18,22,0.87);color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:82%;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,0.3);}
+.map-toast.show{opacity:1;}
+.wp-pop .wp-del-btn{font:inherit;font-size:12.5px;font-weight:600;color:#A62020;background:#FCEBEB;border:1px solid #F7C1C1;border-radius:6px;padding:7px 12px;cursor:pointer;}
+.wp-pop .wp-del-btn:hover{background:#A62020;color:#fff;}

@@ -6,7 +6,7 @@
 <title>Velis Electro — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=13">
+<link rel="stylesheet" href="navplan.css?v=14">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -204,6 +204,7 @@
       <div class="cell"><div class="v" id="hud-trk">—</div><div class="l">Track</div></div>
       <div class="cell"><div class="v" id="hud-dest">—</div><div class="l">Dest nm</div></div>
     </div>
+    <div class="map-toast" id="map-toast"></div>
   </div>
 </div>
 
@@ -1255,16 +1256,16 @@ async function onWpDragEnd(idx,marker){
   const p=marker.getLatLng();
   let lat=p.lat,lon=p.lng;
   const doSnap=snapEnabled();
-  document.getElementById('map-hint').textContent=doSnap?'Snapping to nearest place…':'Moving waypoint…';
+  mapToast(doSnap?'Snapping to nearest place…':'Moving waypoint…');
   const place=doSnap?await snapNearestPlace(lat,lon):null;
   if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
   r.coord=fmtCoord(lat,lon);
   _refreshLegGeom(idx);_refreshLegGeom(idx+1);
   saveState();
   renderWP();
-  document.getElementById('map-hint').textContent=place
+  mapToast(place
     ? 'Snapped to '+place.name+' — NAV Plan and Route Planner updated.'
-    : (doSnap?'No nearby place found — kept the dragged position.':'Waypoint moved — NAV Plan and Route Planner updated.');
+    : (doSnap?'No nearby place found — kept the dragged position.':'Waypoint moved — NAV Plan and Route Planner updated.'));
   renderRouteMap(false);
 }
 
@@ -1280,7 +1281,16 @@ function _refreshLegGeom(i){
 /* ═══ CLICK-TO-INSERT — a tap on empty map adds a waypoint at the spot
    (snapped like a drag) at the minimal-detour position in the route.
    The departure stays first, the destination last. ═══ */
-let _addClickTimer=null,_suppressAddUntil=0;
+let _addClickTimer=null,_suppressAddUntil=0,_toastTimer=null;
+// Action feedback ON the map — the bar hint is easy to miss.
+function mapToast(msg){
+  const el=document.getElementById('map-toast');
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),2600);
+  document.getElementById('map-hint').textContent=msg;
+}
 function _routeInsertIndex(p){
   const n=state.route.length;
   let best=Math.max(1,n-1),min=Infinity,prev=null;
@@ -1298,7 +1308,7 @@ function _routeInsertIndex(p){
 async function addWaypointAt(latlng){
   let lat=latlng.lat,lon=latlng.lng;
   const doSnap=snapEnabled();
-  document.getElementById('map-hint').textContent=doSnap?'Adding waypoint — snapping to nearest place…':'Adding waypoint…';
+  mapToast(doSnap?'Adding waypoint — snapping to nearest place…':'Adding waypoint…');
   const place=doSnap?await snapNearestPlace(lat,lon):null;
   let name='';
   if(place){lat=place.lat;lon=place.lon;name=place.name;}
@@ -1308,35 +1318,40 @@ async function addWaypointAt(latlng){
   state.route.splice(j,0,row);
   _refreshLegGeom(j);_refreshLegGeom(j+1);
   saveState();renderWP();
-  document.getElementById('map-hint').textContent=(name?'Added '+name:'Added waypoint')+' — NAV Plan and Route Planner updated.';
+  mapToast((name?'Added '+name:'Added waypoint')+' — NAV Plan and Route Planner updated.');
   renderRouteMap(false);
 }
 /* ═══ DELETE — double-click / right-click / long-press (iOS Safari fires
    no contextmenu on markers) an intermediate waypoint. DEP/DEST stay. ═══ */
 function wireWpDelete(m,p){
   if(p.idx===0||p.idx===state.route.length-1) return;
-  let lpTimer=null,lpGuard=0;
+  const doDelete=()=>{
+    _suppressAddUntil=Date.now()+700;          // swallow the synthesized click
+    state.route.splice(p.idx,1);
+    _refreshLegGeom(p.idx);
+    saveState();renderWP();
+    mapToast('Removed '+(p.label||'waypoint')+' — NAV Plan and Route Planner updated.');
+    renderRouteMap(false);
+  };
+  let lpGuard=0;
   const ask=()=>{
     if(Date.now()<lpGuard) return;
     lpGuard=Date.now()+600;
     const ok=confirm('Remove waypoint "'+(p.label||'')+'" from the route?');
-    _suppressAddUntil=Date.now()+700;          // swallow the synthesized click
-    if(!ok) return;
-    state.route.splice(p.idx,1);
-    _refreshLegGeom(p.idx);
-    saveState();renderWP();
-    document.getElementById('map-hint').textContent='Waypoint removed — NAV Plan and Route Planner updated.';
-    renderRouteMap(false);
+    _suppressAddUntil=Date.now()+700;
+    if(ok) doDelete();
   };
   m.on('dblclick',e=>{L.DomEvent.stop(e);ask();});
   m.on('contextmenu',e=>{L.DomEvent.stop(e);ask();});
-  m.on('add',()=>{
-    const el=m.getElement();
-    if(!el) return;
-    el.addEventListener('touchstart',()=>{lpTimer=setTimeout(ask,600);},{passive:true});
-    el.addEventListener('touchmove',()=>clearTimeout(lpTimer),{passive:true});
-    el.addEventListener('touchend',()=>clearTimeout(lpTimer),{passive:true});
-  });
+  // Touch: a tap opens a popup with a Remove button — long-press clashed
+  // with press-and-hold before dragging, so it's gone.
+  const pop=document.createElement('div');
+  pop.className='wp-pop';
+  const db=document.createElement('button');
+  db.type='button';db.className='wp-del-btn';db.textContent='✕ Remove '+(p.label||'waypoint');
+  db.addEventListener('click',()=>{m.closePopup();doDelete();});
+  pop.appendChild(db);
+  m.bindPopup(pop,{closeButton:false,offset:[0,-8]});
 }
 
 
