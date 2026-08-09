@@ -1016,8 +1016,14 @@ function renderRouteMap(fit){
     _map.on('dragstart',()=>{_followFly=false;});
     _map.on('click',e=>{
       if(_watchId!=null) return;               // fly mode — no planning edits
+      // iOS synthesizes a click after a long-press/confirm dialog; with the
+      // marker deleted it lands on the map and would re-add a waypoint.
+      if(Date.now()<_suppressAddUntil) return;
       clearTimeout(_addClickTimer);
-      _addClickTimer=setTimeout(()=>addWaypointAt(e.latlng),300);
+      _addClickTimer=setTimeout(()=>{
+        if(Date.now()<_suppressAddUntil) return;
+        addWaypointAt(e.latlng);
+      },300);
     });
     _map.on('dblclick',()=>clearTimeout(_addClickTimer));
   }
@@ -1213,7 +1219,7 @@ function _refreshLegGeom(i){
 /* ═══ CLICK-TO-INSERT — a tap on empty map adds a waypoint at the spot
    (snapped like a drag) at the minimal-detour position in the route.
    The departure stays first, the destination last. ═══ */
-let _addClickTimer=null;
+let _addClickTimer=null,_suppressAddUntil=0;
 function _routeInsertIndex(p){
   const n=state.route.length;
   let best=Math.max(1,n-1),min=Infinity,prev=null;
@@ -1252,7 +1258,9 @@ function wireWpDelete(m,p){
   const ask=()=>{
     if(Date.now()<lpGuard) return;
     lpGuard=Date.now()+600;
-    if(!confirm('Remove waypoint "'+(p.label||'')+'" from the route?')) return;
+    const ok=confirm('Remove waypoint "'+(p.label||'')+'" from the route?');
+    _suppressAddUntil=Date.now()+700;          // swallow the synthesized click
+    if(!ok) return;
     state.route.splice(p.idx,1);
     _refreshLegGeom(p.idx);
     saveState();renderWP();
