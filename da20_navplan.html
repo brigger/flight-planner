@@ -6,13 +6,25 @@
 <title>Diamond DA20-C1 — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=17">
+<link rel="stylesheet" href="navplan.css?v=19">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
 <body>
 
 <nav class="nav"><div class="nav-inner"></div></nav>
+
+<div id="fly-bar" hidden>
+  <div class="seg">
+    <button type="button" data-fv="nav">NAV Plan</button>
+    <button type="button" data-fv="split">Split</button>
+    <button type="button" data-fv="map" class="on">Map</button>
+  </div>
+  <span class="grow"></span>
+  <span class="fly-clock" id="fly-clock"></span>
+  <button type="button" id="fly-stop-btn">■ Stop</button>
+</div>
+
 
 <div class="page-wrap">
 
@@ -28,6 +40,7 @@
     <button id="btn-clear">Clear form</button>
     <button id="btn-print" class="primary">Print</button>
     <span class="grow"></span>
+    <button id="btn-fly" class="fly-btn" title="Fly mode — full-screen map / NAV plan with live position">Fly ▶</button>
   </div>
 
   <div class="sheet view-nav" id="sheet">
@@ -187,7 +200,6 @@
         <label class="map-snap" title="Snap dragged and added points to the nearest settlement"><input type="checkbox" id="map-snap"> Snap</label>
         <label class="map-snap" id="map-air-wrap" hidden title="Show or hide the openAIP airspace overlay"><input type="checkbox" id="map-air"> Airspace</label>
         <button type="button" id="map-locate" class="map-aip" title="Go to current location">➤</button>
-        <button type="button" id="map-fly" class="map-aip" title="Fly mode — live position with GS / altitude">Fly ▶</button>
         <button type="button" id="map-aip-btn" class="map-aip"></button>
         <button type="button" id="map-close" class="map-aip" title="Back to the NAV Plan">✕ Close</button>
       </div>
@@ -458,6 +470,7 @@ function wireRowInputs(){
   tb.querySelectorAll('tr[data-idx]').forEach(tr=>{
     const i=+tr.dataset.idx;
     tr.querySelectorAll('input[data-f]').forEach(inp=>{
+      if(inp.dataset.f==='ato') inp.addEventListener('focus',()=>_flyAutoTime(inp));
       inp.addEventListener('input',()=>{
         state.route[i][inp.dataset.f]=inp.value;
         if(inp.dataset.f==='ident'){
@@ -1058,7 +1071,7 @@ function renderRouteMap(fit){
   const line=pts.length>=2?L.polyline(pts.map(p=>p.ll),{color:'#d633c0',weight:4,opacity:0.9}):null;
   const g=line?[line]:[];
   pts.forEach((p,k)=>{
-    const m=L.marker(p.ll,{draggable:true,zIndexOffset:500,
+    const m=L.marker(p.ll,{draggable:!document.body.classList.contains('fly-ui'),zIndexOffset:500,
       icon:L.divIcon({className:'wp-dot',iconSize:[14,14],iconAnchor:[7,7]})})
       .bindTooltip(p.label,{permanent:k===0||k===pts.length-1,direction:'top',offset:[0,-8]});
     m.on('drag',()=>{
@@ -1120,6 +1133,21 @@ function _onFix(pos){
   _hudSet('hud-gs',(c.speed!=null&&isFinite(c.speed))?String(Math.round(c.speed*_KT)):'—');
   _hudSet('hud-alt',(c.altitude!=null&&isFinite(c.altitude))?Math.round(c.altitude*_FT).toLocaleString():'—');
   _hudSet('hud-trk',(c.heading!=null&&isFinite(c.heading))?String(Math.round(c.heading)).padStart(3,'0')+'°':'—');
+  // Auto-ATO — passing within 0.6 nm of a coordinate waypoint stamps it once.
+  let atoHit=false;
+  state.route.forEach(r=>{
+    if((r.ato||'').trim()) return;
+    const c=parseCoordStr(r.coord);
+    if(c&&_distNm(ll,c)<=0.6){r.ato=_nowHM();atoHit=true;}
+  });
+  if(atoHit){
+    saveState();
+    document.querySelectorAll('#wp-body tr[data-idx]').forEach(tr=>{
+      const inp=tr.querySelector('input[data-f="ato"]');
+      const r=state.route[+tr.dataset.idx];
+      if(inp&&r&&document.activeElement!==inp) inp.value=r.ato||'';
+    });
+  }
   const d=_destCoord();
   if(d){const nm=_distNm(ll,d);_hudSet('hud-dest',nm>=10?String(Math.round(nm)):nm.toFixed(1));}
   else _hudSet('hud-dest','—');
@@ -1134,17 +1162,65 @@ function startFly(){
   if(!navigator.geolocation){alert('This device/browser has no location service.');return;}
   _followFly=true;
   document.getElementById('fly-hud').hidden=false;
-  const b=document.getElementById('map-fly');b.classList.add('on');b.textContent='■ Stop';
   _watchId=navigator.geolocation.watchPosition(_onFix,_onFixErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
+  document.getElementById('fly-bar').hidden=false;
+  document.getElementById('fly-clock').textContent=_nowHM();
+  _flyClockT=setInterval(()=>{document.getElementById('fly-clock').textContent=_nowHM();},1000);
+  applyFlyView('map');
 }
 function stopFly(){
   if(_watchId!=null){navigator.geolocation.clearWatch(_watchId);_watchId=null;}
   if(_flyMarker){_flyMarker.remove();_flyMarker=null;}
   if(_flyAcc){_flyAcc.remove();_flyAcc=null;}
   const hud=document.getElementById('fly-hud');if(hud)hud.hidden=true;
-  const b=document.getElementById('map-fly');if(b){b.classList.remove('on');b.textContent='Fly ▶';}
+  if(_flyClockT){clearInterval(_flyClockT);_flyClockT=null;}
+  const fb=document.getElementById('fly-bar');if(fb)fb.hidden=true;
+  if(document.body.classList.contains('fly-ui')){
+    document.body.classList.remove('fly-ui','fly-split');
+    applyView(localStorage.getItem(VIEW_KEY)||'view-nav');
+  }
 }
 window._flyStop=stopFly;
+/* ═══ FLY-MODE UI — cockpit layout: nav/toolbar hidden, top switcher for
+   NAV Plan / Split / Map, tap-to-time for START/END/ATO, auto-ATO on
+   waypoint passage. ═══ */
+function _nowHM(){const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+let _flyView='map',_flyClockT=null;
+function applyFlyView(v){
+  _flyView=v;
+  document.body.classList.add('fly-ui');
+  document.body.classList.toggle('fly-split',v==='split');
+  const showMap=v!=='nav',showNav=v!=='map';
+  mapPane.hidden=!showMap;
+  sheetEl.style.display=showNav?'':'none';
+  if(showNav){sheetEl.classList.remove('view-fuel');sheetEl.classList.add('view-nav');}
+  document.querySelectorAll('#fly-bar [data-fv]').forEach(b=>b.classList.toggle('on',b.dataset.fv===v));
+  if(showMap){renderRouteMap(false);setTimeout(()=>{if(_map)_map.invalidateSize();},60);}
+}
+document.querySelectorAll('#fly-bar [data-fv]').forEach(b=>b.addEventListener('click',()=>applyFlyView(b.dataset.fv)));
+document.getElementById('fly-stop-btn').addEventListener('click',()=>stopFly());
+// Toolbar entry point — opens the map first if needed, then starts.
+document.getElementById('btn-fly').addEventListener('click',()=>{
+  if(_watchId!=null){stopFly();return;}
+  applyView('view-map');
+  let tries=0;
+  (function go(){
+    if(window.L&&_map){startFly();return;}
+    if(window.L&&!_map) renderRouteMap();
+    if(++tries<=40) setTimeout(go,150);
+  })();
+});
+// Tap an empty START / END / ATO cell in fly mode → current time.
+function _flyAutoTime(inp){
+  if(!document.body.classList.contains('fly-ui')) return;
+  if((inp.value||'').trim()) return;
+  inp.value=_nowHM();
+  inp.dispatchEvent(new Event('input',{bubbles:false}));
+}
+document.querySelectorAll('input[data-h="startT"],input[data-h="endT"]').forEach(inp=>{
+  inp.addEventListener('focus',()=>_flyAutoTime(inp));
+});
+
 /* ═══ MINI ROUTE MAP on the Endurance half — non-interactive, kept in sync
    with the route; prints in the space below the TO/LDG charts. ═══ */
 let _fmap=null,_froute=null;
@@ -1183,7 +1259,6 @@ if(sheetEl.classList.contains('view-fuel')) setTimeout(fuelMapRender,0);
 // Fly mode never survives leaving the page — Safari's back/forward cache
 // would otherwise restore the frozen HUD (and keep the GPS watch alive).
 window.addEventListener('pagehide',()=>{try{stopFly();}catch(e){}});
-document.getElementById('map-fly').addEventListener('click',()=>{_watchId==null?startFly():stopFly();});
 document.getElementById('map-locate').addEventListener('click',()=>{
   _followFly=true;
   if(_watchId!=null&&_flyMarker){_map.panTo(_flyMarker.getLatLng());return;}
