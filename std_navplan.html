@@ -6,7 +6,7 @@
 <title>Standard Aircraft — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=10">
+<link rel="stylesheet" href="navplan.css?v=11">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -169,6 +169,7 @@
     <div class="map-bar">
       <span id="map-hint" class="map-hint"></span>
       <div class="map-actions">
+        <label class="map-snap" title="Snap dragged and added points to the nearest settlement"><input type="checkbox" id="map-snap"> Snap</label>
         <button type="button" id="map-locate" class="map-aip" title="Go to current location">➤</button>
         <button type="button" id="map-fly" class="map-aip" title="Fly mode — live position with GS / altitude">Fly ▶</button>
         <button type="button" id="map-aip-btn" class="map-aip"></button>
@@ -1072,6 +1073,13 @@ function _bearing(a,b){
   const x=Math.cos(a[0]*rad)*Math.sin(b[0]*rad)-Math.sin(a[0]*rad)*Math.cos(b[0]*rad)*Math.cos((b[1]-a[1])*rad);
   return (Math.atan2(y,x)/rad+360)%360;
 }
+const SNAP_LS='velis_map_snap';
+const snapEnabled=()=>localStorage.getItem(SNAP_LS)!=='0';
+{
+  const cb=document.getElementById('map-snap');
+  cb.checked=snapEnabled();
+  cb.addEventListener('change',()=>{localStorage.setItem(SNAP_LS,cb.checked?'1':'0');});
+}
 async function snapNearestPlace(lat,lon){
   const tiers=[['city|town|village|hamlet',12000],['city|town|village',40000]];
   for(const [re,rad] of tiers){
@@ -1097,8 +1105,9 @@ async function onWpDragEnd(idx,marker){
   if(!r) return;
   const p=marker.getLatLng();
   let lat=p.lat,lon=p.lng;
-  document.getElementById('map-hint').textContent='Snapping to nearest place…';
-  const place=await snapNearestPlace(lat,lon);
+  const doSnap=snapEnabled();
+  document.getElementById('map-hint').textContent=doSnap?'Snapping to nearest place…':'Moving waypoint…';
+  const place=doSnap?await snapNearestPlace(lat,lon):null;
   if(place){lat=place.lat;lon=place.lon;r.wp=place.name;}
   r.coord=fmtCoord(lat,lon);
   _refreshLegGeom(idx);_refreshLegGeom(idx+1);
@@ -1106,7 +1115,7 @@ async function onWpDragEnd(idx,marker){
   renderWP();
   document.getElementById('map-hint').textContent=place
     ? 'Snapped to '+place.name+' — NAV Plan and Route Planner updated.'
-    : 'No nearby place found — kept the dragged position.';
+    : (doSnap?'No nearby place found — kept the dragged position.':'Waypoint moved — NAV Plan and Route Planner updated.');
   renderRouteMap();
 }
 
@@ -1139,8 +1148,9 @@ function _routeInsertIndex(p){
 }
 async function addWaypointAt(latlng){
   let lat=latlng.lat,lon=latlng.lng;
-  document.getElementById('map-hint').textContent='Adding waypoint — snapping to nearest place…';
-  const place=await snapNearestPlace(lat,lon);
+  const doSnap=snapEnabled();
+  document.getElementById('map-hint').textContent=doSnap?'Adding waypoint — snapping to nearest place…':'Adding waypoint…';
+  const place=doSnap?await snapNearestPlace(lat,lon):null;
   let name='';
   if(place){lat=place.lat;lon=place.lon;name=place.name;}
   const j=_routeInsertIndex([lat,lon]);
@@ -1472,7 +1482,7 @@ refreshEndurance();
 window.addEventListener('pageshow',()=>{ syncTripFromRoute(); refreshEndurance(); });
 
 </script>
-<script src="plan_sync.js?v=30" defer></script>
+<script src="plan_sync.js?v=31" defer></script>
 
 </body>
 </html>

@@ -53,7 +53,8 @@ window.velisWp = (function(){
   const AC_KEY         = 'velis_aircraft';             // selected aircraft id (UI pref)
   const FREQ_DIR_KEY   = 'velis_freq_directory';       // cached global freq directory (not per-plan data)
   const OPENAIP_KEY    = 'velis_openaip_key';          // per-device openAIP map key (config, not plan data)
-  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY,OPENAIP_KEY]);
+  const MAP_SNAP_KEY   = 'velis_map_snap';             // per-device map snap toggle
+  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY,OPENAIP_KEY,MAP_SNAP_KEY]);
 
   /* ─── Aircraft + Nav definition ─── */
   // Single source of truth for the aircraft selector and per-aircraft menus.
