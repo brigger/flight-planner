@@ -6,7 +6,7 @@
 <title>Standard Aircraft — NAV Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="navplan.css?v=7">
+<link rel="stylesheet" href="navplan.css?v=8">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
@@ -168,7 +168,10 @@
   <div class="map-pane" id="map-pane" hidden>
     <div class="map-bar">
       <span id="map-hint" class="map-hint"></span>
-      <button type="button" id="map-aip-btn" class="map-aip"></button>
+      <div class="map-actions">
+        <button type="button" id="map-aip-btn" class="map-aip"></button>
+        <button type="button" id="map-close" class="map-aip" title="Back to the NAV Plan">✕ Close</button>
+      </div>
     </div>
     <div id="route-map"></div>
   </div>
@@ -856,6 +859,10 @@ const applyView=v=>{
   document.querySelectorAll('#view-seg button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
   if(isMap) renderRouteMap();
 };
+document.getElementById('map-close').addEventListener('click',()=>{
+  applyView('view-nav');
+  localStorage.setItem(VIEW_KEY,'view-nav');
+});
 applyView(localStorage.getItem(VIEW_KEY)||'view-nav');
 document.querySelectorAll('#view-seg button').forEach(btn=>{
   btn.addEventListener('click',()=>{
