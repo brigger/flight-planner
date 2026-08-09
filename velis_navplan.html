@@ -973,7 +973,15 @@ function aipRefresh(){
     if(_aipLayer){_aipLayer.remove();_aipLayer=null;}
     if(key){
       _aipLayer=L.tileLayer('https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey='+encodeURIComponent(key),
-        {maxZoom:14,opacity:0.9,attribution:'© <a href="https://www.openaip.net">openAIP</a>'});
+        {maxZoom:17,maxNativeZoom:14,opacity:0.9,attribution:'© <a href="https://www.openaip.net">openAIP</a>'});
+      let _aipFailed=0,_aipOk=false;
+      _aipLayer.on('tileload',()=>{
+        if(!_aipOk){_aipOk=true;const h=document.getElementById('map-hint');if(/openAIP/.test(h.textContent))h.textContent='';}
+      });
+      _aipLayer.on('tileerror',()=>{
+        if(_aipOk||++_aipFailed<3) return;
+        document.getElementById('map-hint').textContent='⚠ openAIP is rejecting the key — click "change key" and paste the API Key from openaip.net (Account → API Clients → eye icon), not the client name or id.';
+      });
       _aipLayer.addTo(_map);
     }
   }
