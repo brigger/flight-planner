@@ -1103,13 +1103,15 @@ function renderRouteMap(fit){
   state.route.forEach((r,i)=>{
     const ll=parseCoordStr(r.coord);
     if(ll) pts.push({ll,label:wpLabel(r,i),idx:i});
-    else missing++;
+    // Empty placeholder rows (a fresh plan's DEP/DEST) aren't "skipped
+    // waypoints" — only named rows without coordinates are worth flagging.
+    else if((r.wp||'').trim()||(r.ident||'').trim()) missing++;
   });
   if(pts.length===0){
     hint.textContent='No coordinates on this route yet — tap the map to add waypoints, or Import… a Sky Demon nav log with coordinate lines.';
     return;
   }
-  hint.textContent=pts.length+' of '+state.route.length+' waypoints have coordinates'+(missing?' ('+missing+' without are skipped)':'');
+  hint.textContent=pts.length+(pts.length===1?' waypoint':' waypoints')+' on the map'+(missing?' — '+missing+(missing===1?' named row':' named rows')+' without coordinates skipped':'');
   // A single point still shows as a dot — the line joins in from two on.
   const line=pts.length>=2?L.polyline(pts.map(p=>p.ll),{color:'#d633c0',weight:4,opacity:0.9}):null;
   const g=line?[line]:[];
