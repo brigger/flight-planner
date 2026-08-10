@@ -122,6 +122,8 @@
   <div class="card">
     <div class="leg-badge" style="background:#E6F1FB;color:#0C447C;margin-bottom:10px;"><input class="badge-name" id="dep-name" placeholder="Departure" maxlength="48" autocomplete="off" spellcheck="false"></div>
     <div class="sr"><label>Departure altitude (ft AMSL)</label><div class="alt-wrap"><input type="range" id="dep-alt" min="0" max="8000" step="25" value="1525"><div class="alt-ticks" data-for="dep-alt"></div></div><span class="sv" id="dep-alt-v">1,525 ft</span></div>
+    <div class="sr"><label>QNH at departure (hPa)</label><input type="number" id="dep-qnh" min="940" max="1060" step="1" value="1013" inputmode="numeric" style="width:92px;padding:6px 10px;border:1px solid #ccc8c0;border-radius:6px;font:inherit;font-size:13px;background:#fff;"><span class="sv"></span></div>
+    <div class="chain-note" id="dep-da">Density altitude: —</div>
   </div>
 
   <!-- DYNAMIC LEG CARDS -->
@@ -499,6 +501,13 @@ function update(){
   document.getElementById('oat-v').textContent=(oat>=0?'+':'')+oat+' °C';
   document.getElementById('reserve-v').textContent=reserveMin+' min';
   document.getElementById('dep-alt-v').textContent=depAlt.toLocaleString()+' ft';
+  // Density altitude at the departure — QNH → pressure altitude (27 ft/hPa),
+  // then +120 ft per °C above ISA at that pressure altitude.
+  const qnh=parseFloat(document.getElementById('dep-qnh').value)||1013;
+  const depPa=depAlt+(1013-qnh)*27;
+  const depIsaDev=oat-(15-2*(depPa/1000));
+  const depDa=Math.round(depPa+120*depIsaDev);
+  document.getElementById('dep-da').textContent='Density altitude: '+depDa.toLocaleString()+' ft  (PA '+Math.round(depPa).toLocaleString()+' ft · ISA '+(depIsaDev>=0?'+':'')+Math.round(depIsaDev)+' °C)';
   document.getElementById('arr-alt-v').textContent=arrAlt.toLocaleString()+' ft';
   document.getElementById('arr-dist-v').textContent=arrDist+' nm';
   document.getElementById('perf-adj-v').textContent=(perfAdj>0?'+':'')+perfAdj+'%';
@@ -793,6 +802,7 @@ const STATE_FIELDS = {
   fuel:'fuel', emptyWeight:'empty-weight', payload:'payload', oat:'oat', reserveMin:'reserve',
   depAlt:'dep-alt', arrAlt:'arr-alt', arrDist:'arr-dist',
   depName:'dep-name', arrName:'arr-name', perfAdj:'perf-adj',
+  depQnh:'dep-qnh',
 };
 function getFullState(){
   const s={
@@ -1025,7 +1035,7 @@ async function init(){
     _scheduled=true;
     requestAnimationFrame(()=>{_scheduled=false;update();});
   }
-  ['fuel','empty-weight','payload','oat','reserve','dep-alt','arr-alt','arr-dist','perf-adj'].forEach(id=>
+  ['fuel','empty-weight','payload','oat','reserve','dep-alt','dep-qnh','arr-alt','arr-dist','perf-adj'].forEach(id=>
     document.getElementById(id).addEventListener('input',scheduleUpdate));
   ['dep-name','arr-name'].forEach(id=>
     document.getElementById(id).addEventListener('input',()=>saveState()));
