@@ -855,6 +855,30 @@ def delete_freq(fid):
 
 
 # ── admin routes ───────────────────────────────────────────────────────
+# ── app settings ───────────────────────────────────────────────────────
+# Family-wide defaults. Currently one key: the shared openAIP key, served
+# to signed-in users; a personal key in the Account dialog overrides it.
+@app.get("/api/config")
+@require_user
+def get_config():
+    c = conn(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT v FROM app_settings WHERE k = 'openaip_key'")
+    row = cur.fetchone()
+    cur.close(); c.close()
+    return jsonify({"openaip_key": (row and row["v"]) or ""})
+
+
+@app.put("/api/admin/config")
+@require_admin
+def put_config():
+    body = request.get_json(force=True, silent=True) or {}
+    key = str(body.get("openaip_key") or "").strip()[:120]
+    c = conn(); cur = c.cursor()
+    cur.execute("REPLACE INTO app_settings (k, v) VALUES ('openaip_key', %s)", (key or None,))
+    cur.close(); c.close()
+    return {"ok": True, "set": bool(key)}
+
+
 # ── personal frequency directory ───────────────────────────────────────
 # Each user's own table — it alone feeds their NAV-plan dropdown. Seeded
 # from the global defaults (freq_directory) on first access.

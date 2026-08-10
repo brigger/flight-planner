@@ -87,3 +87,9 @@ CREATE TABLE IF NOT EXISTS user_freqs (
   KEY idx_uf_user (user_id),
   CONSTRAINT fk_uf_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  k VARCHAR(40) NOT NULL,
+  v TEXT NULL,
+  PRIMARY KEY (k)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

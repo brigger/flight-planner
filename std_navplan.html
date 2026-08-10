@@ -975,7 +975,7 @@ function parseCoordStr(s){
 }
 function aipRefresh(){
   const btn=document.getElementById('map-aip-btn');
-  const key=localStorage.getItem(OPENAIP_KEY_LS)||'';
+  const key=(window.velisAipKey&&window.velisAipKey())||localStorage.getItem(OPENAIP_KEY_LS)||'';
   // Once a key is set it is managed in the Account… dialog — keep the map bar clean.
   btn.hidden=!!key;
   btn.textContent='Airspaces: add free openAIP key…';
@@ -1232,7 +1232,7 @@ function fuelMapRender(){
     _fmap=L.map('fuel-map',{zoomControl:false,attributionControl:false,dragging:false,
       scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false});
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:17}).addTo(_fmap);
-    const key=localStorage.getItem(OPENAIP_KEY_LS)||'';
+    const key=(window.velisAipKey&&window.velisAipKey())||localStorage.getItem(OPENAIP_KEY_LS)||'';
     if(key&&localStorage.getItem(AIR_LS)!=='0'){
       L.tileLayer('https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey='+encodeURIComponent(key),
         {maxZoom:17,maxNativeZoom:14,opacity:0.9}).addTo(_fmap);
@@ -1754,7 +1754,7 @@ refreshEndurance();
 window.addEventListener('pageshow',()=>{ syncTripFromRoute(); refreshEndurance(); });
 
 </script>
-<script src="plan_sync.js?v=36" defer></script>
+<script src="plan_sync.js?v=37" defer></script>
 
 </body>
 </html>

@@ -55,7 +55,8 @@ window.velisWp = (function(){
   const OPENAIP_KEY    = 'velis_openaip_key';          // per-device openAIP map key (config, not plan data)
   const MAP_SNAP_KEY   = 'velis_map_snap';             // per-device map snap toggle
   const MAP_AIR_KEY    = 'velis_map_airspace';         // per-device airspace-overlay toggle
-  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY,OPENAIP_KEY,MAP_SNAP_KEY,MAP_AIR_KEY]);
+  const OPENAIP_DEFAULT= 'velis_openaip_default';      // family openAIP key served by the backend
+  const BUNDLE_EXCLUDE = new Set([USER_KEY,VIEW_KEY,MTIME_KEY,STIME_KEY,AUTO_SYNC_KEY,AC_KEY,FREQ_DIR_KEY,OPENAIP_KEY,OPENAIP_DEFAULT,MAP_SNAP_KEY,MAP_AIR_KEY]);
 
   /* ─── Aircraft + Nav definition ─── */
   // Single source of truth for the aircraft selector and per-aircraft menus.
@@ -257,8 +258,8 @@ window.velisWp = (function(){
     <label>First name<input id="plan-account-first" type="text" autocomplete="given-name"></label>
     <label>Last name<input id="plan-account-last" type="text" autocomplete="family-name"></label>
     <label>Email<input id="plan-account-email" type="email" disabled></label>
-    <label>openAIP map key — this device<input id="plan-account-aip" type="text" autocomplete="off" placeholder="airspace overlay on the Map view (openaip.net)"></label>
-    <p class="hint">Your name appears on sign-in pages and pre-fills the NAV Plan's PILOT field. The email is the account and can't be changed. The openAIP key stays on this device.</p>
+    <label>openAIP map key — this device<input id="plan-account-aip" type="text" autocomplete="off" placeholder="empty = family default key"></label>
+    <p class="hint">Your name appears on sign-in pages and pre-fills the NAV Plan's PILOT field. The email is the account and can't be changed. The openAIP key is an optional personal override — empty uses the family default.</p>
     <div class="plan-modal-actions">
       <button type="button" id="plan-account-cancel">Cancel</button>
       <span class="spacer"></span>
@@ -332,6 +333,15 @@ window.velisWp = (function(){
       }
       currentUser=after;
       setCachedUser(after);
+      if(after){
+        // Refresh the family openAIP default (personal key still wins).
+        api('/config').then(cfg=>{
+          if(cfg&&typeof cfg.openaip_key==='string'){
+            if(cfg.openaip_key) safeSetItem(OPENAIP_DEFAULT,cfg.openaip_key);
+            else localStorage.removeItem(OPENAIP_DEFAULT);
+          }
+        }).catch(()=>{});
+      }
       repaint();
       return after;
     }catch(e){
@@ -345,7 +355,7 @@ window.velisWp = (function(){
     // Logout wipes USER data (plans, cached profile) — device configuration
     // (openAIP key, map prefs, aircraft selection) belongs to the browser,
     // not the account, and survives.
-    const KEEP=new Set([OPENAIP_KEY,MAP_SNAP_KEY,MAP_AIR_KEY,AC_KEY]);
+    const KEEP=new Set([OPENAIP_KEY,OPENAIP_DEFAULT,MAP_SNAP_KEY,MAP_AIR_KEY,AC_KEY]);
     const keys=[];
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
@@ -1045,6 +1055,11 @@ window.velisWp = (function(){
   else boot();
 
   /* ─── Public API ─── */
+  // Effective openAIP key: personal override, else the family default.
+  window.velisAipKey=function(){
+    return localStorage.getItem(OPENAIP_KEY)||localStorage.getItem(OPENAIP_DEFAULT)||'';
+  };
+
   window.velisPlan = {
     save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew, applyPlanData,
     openSettings:openAuthModal,  // legacy alias

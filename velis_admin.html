@@ -163,6 +163,8 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
           <tbody id="freqs-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
         </table>
         <p class="sub" id="freqs-status" style="margin-top:8px;" hidden></p>
+        <p class="sub" style="margin-top:8px;">Family openAIP key: <strong id="aip-default-state">…</strong>
+          <button type="button" id="aip-default-btn" class="freq-chk warn">Use this device's key as family default</button></p>
       </div>
     </div>
 
@@ -219,7 +221,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   async function aipAirport(icao){
     icao=icao.toUpperCase();
     if(icao in _aipCache) return _aipCache[icao];
-    const key=localStorage.getItem('velis_openaip_key')||'';
+    const key=(window.velisAipKey&&window.velisAipKey())||'';
     if(!key) throw new Error('no openAIP key on this device');
     const r=await fetch('https://api.core.openaip.net/api/airports?search='+encodeURIComponent(icao)+'&limit=6',
       {headers:{'x-openaip-api-key':key}});
@@ -241,7 +243,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   }
   function updateAipNote(){
     const note=document.getElementById('freqs-aip-note');
-    if(note) note.hidden=!!(localStorage.getItem('velis_openaip_key')||'');
+    if(note) note.hidden=!!((window.velisAipKey&&window.velisAipKey())||'');
   }
   function freqDirectory(cfg){
     let list=[];
@@ -249,7 +251,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     const err=msg=>{const el=document.getElementById(cfg.errId);el.textContent=msg||'';el.hidden=!msg;};
     const status=msg=>{const el=document.getElementById(cfg.statusId);if(el){el.textContent=msg||'';el.hidden=!msg;}};
     async function verify(){
-      if(!(localStorage.getItem('velis_openaip_key')||'')) return;
+      if(!((window.velisAipKey&&window.velisAipKey())||'')) return;
       for(const f of list){
         if(!f.icao) continue;
         let ap=null;
@@ -510,9 +512,25 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     }
     renderUsers(); renderPlans(); updateStats();
     myFreqs.load();
-    if(isAdmin) defFreqs.load();
+    if(isAdmin){defFreqs.load();refreshAipDefault();}
     updateAipNote();
   }
+  async function refreshAipDefault(){
+    try{
+      const cfg=await api('/config');
+      document.getElementById('aip-default-state').textContent=
+        cfg.openaip_key?'set — served to all signed-in users':'not set';
+    }catch(e){}
+  }
+  document.getElementById('aip-default-btn').addEventListener('click',async()=>{
+    const key=(window.velisAipKey&&window.velisAipKey())||'';
+    if(!key){alert('No openAIP key on this device — add it via the disc menu → Account… first.');return;}
+    try{
+      await api('/admin/config',{method:'PUT',body:JSON.stringify({openaip_key:key})});
+      localStorage.setItem('velis_openaip_default',key);
+      refreshAipDefault();
+    }catch(e){alert('Could not store the default: '+e.message);}
+  });
 
   document.getElementById('users-body').addEventListener('click',ev=>{
     const tr=ev.target.closest('tr[data-uid]');
@@ -589,6 +607,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=36" defer></script>
+<script src="plan_sync.js?v=37" defer></script>
 </body>
 </html>
