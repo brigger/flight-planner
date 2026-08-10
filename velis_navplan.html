@@ -422,7 +422,8 @@ function wpRow(r,i,role,eetExtra,socEst){
     <td><input class="single-inp" data-f="wind" value="${esc(r.wind)}"></td>
     <td class="dual">
       <input class="dual-inp u" data-f="freqR" value="${esc(r.freqR)}"${canMerge?' style="padding-right:9mm;"':canDel?' style="padding-right:5mm;"':''}>
-      <input class="dual-inp l" data-f="remark" value="${esc(r.remark)}">
+      <input class="dual-inp l" data-f="remark" list="wp-freq-list" value="${esc(r.remark)}"${canMergeDn?' style="padding-right:9mm;"':' style="padding-right:5mm;"'}>
+      <button class="freq-pick freq-pick-r" title="Choose frequency for remarks" type="button" tabindex="-1">▾</button>
       ${canMergeUp?`<button class="merge-btn merge-up" data-merge-up="${i}" title="Merge with leg above — removes the previous waypoint; its DIST and EET are added to this leg" type="button">⤴</button>`:''}
       ${canMergeDn?`<button class="merge-btn merge-dn" data-merge-dn="${i}" title="Merge with leg below — removes the next waypoint; its DIST and EET are added to this leg" type="button">⤵</button>`:''}
       ${canDel?`<button class="del-btn" data-del="${i}" title="Remove waypoint">×</button>`:''}
@@ -464,7 +465,8 @@ function altnRow(){
     <td><input class="single-inp" data-af="wind" value="${esc(r.wind)}"></td>
     <td class="dual">
       <input class="dual-inp u" data-af="freqR" value="${esc(r.freqR)}">
-      <input class="dual-inp l" data-af="remark" value="${esc(r.remark)}">
+      <input class="dual-inp l" data-af="remark" list="wp-freq-list" value="${esc(r.remark)}" style="padding-right:5mm;">
+      <button class="freq-pick freq-pick-r" title="Choose frequency for remarks" type="button" tabindex="-1">▾</button>
     </td>
   </tr>`;
 }
@@ -496,6 +498,15 @@ function wireRowInputs(){
             if(fi) fi.value=f;
           }
           if(applyLspgDefaults()){syncRowInputs(0);syncRowInputs(state.route.length-1);}
+        }
+        if(inp.dataset.f==='remark'){
+          // Typing a directory name in REMARKS fills its frequency above.
+          const f=freqFor(inp.value);
+          if(f!=null&&state.route[i].freqR!==f){
+            state.route[i].freqR=f;
+            const fi=tr.querySelector('input[data-f="freqR"]');
+            if(fi) fi.value=f;
+          }
         }
         saveState();
         if(inp.dataset.f==='dist'||inp.dataset.f==='eet') refreshTotals();
@@ -725,12 +736,20 @@ function toggleFreqMenu(btn){
     if(!b) return;
     const entry=freqDir[+b.dataset.mi];
     const td=btn.parentElement;
-    const identInp=td.querySelector('input[data-f="ident"],input[data-af="ident"]');
-    if(identInp&&entry){
-      identInp.value=entry.name;
-      // Reuse the ident input listener: updates state, autofills the
-      // frequency from the directory and applies the LSPG defaults.
-      identInp.dispatchEvent(new Event('input',{bubbles:true}));
+    if(entry&&btn.classList.contains('freq-pick-r')){
+      // Remarks cell: frequency on top, the entry's name below as the remark.
+      const fInp=td.querySelector('input[data-f="freqR"],input[data-af="freqR"]');
+      const rInp=td.querySelector('input[data-f="remark"],input[data-af="remark"]');
+      if(fInp){fInp.value=entry.freq;fInp.dispatchEvent(new Event('input',{bubbles:true}));}
+      if(rInp){rInp.value=entry.name;rInp.dispatchEvent(new Event('input',{bubbles:true}));}
+    }else if(entry){
+      const identInp=td.querySelector('input[data-f="ident"],input[data-af="ident"]');
+      if(identInp){
+        identInp.value=entry.name;
+        // Reuse the ident input listener: updates state, autofills the
+        // frequency from the directory and applies the LSPG defaults.
+        identInp.dispatchEvent(new Event('input',{bubbles:true}));
+      }
     }
     closeFreqMenu();
   });
