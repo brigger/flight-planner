@@ -216,7 +216,8 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     const by=pat=>fr.find(f=>f.name.includes(pat));
     return {all:fr,
             twr:by('TWR')||by('TOWER')||fr.find(f=>f.primary)||fr[0]||null,
-            info:by('AFIS')||by('INFO')||by('RADIO')||null};
+            info:by('AFIS')||by('INFO')||by('RADIO')||null,
+            gnd:by('GND')||by('GROUND')||by('APRON')||null};
   }
   async function verifyFreqs(){
     const note=document.getElementById('freqs-aip-note');
@@ -231,8 +232,9 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       if(!cell) continue;
       const dateTxt=()=>esc(f.checked_at?fmtDate(f.checked_at):'—');
       if(!ap){cell.innerHTML=dateTxt()+' <span class="freq-chk warn" title="openAIP knows no airport '+esc(f.icao)+'">?</span>';continue;}
-      const {all,twr,info}=pickFreqs(ap);
-      const want=/\binfo$/i.test(f.name)?(info||twr):(twr||info);
+      const {all,twr,info,gnd}=pickFreqs(ap);
+      const want=/\binfo$/i.test(f.name)?(info||twr)
+                :(/\bground$/i.test(f.name)?(gnd||twr):(twr||info||gnd));
       const ok=all.some(x=>x.value===String(f.freq).trim());
       if(ok){
         // Confirmed — refresh the stamp at most once a day.
@@ -302,28 +304,31 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     async function addEntry(){
       const icao=addIcao.value.trim().toUpperCase();
       let name=addName.value.trim(), freq=addFreq.value.trim();
-      let verified=false, infoRow=null;
+      let verified=false, extraRows=[];
       if(icao&&!freq){
-        // Auto-lookup: TWR (or AFIS/Info) from openAIP; a distinct AD-Info
-        // frequency becomes a second "<name> Info" entry.
+        // Auto-lookup: TWR (or AFIS/Info) from openAIP; distinct AD-Info and
+        // Ground frequencies become "<name> Info" / "<name> Ground" entries —
+        // all of them selectable in the NAV plan dropdown.
         freqErr('');
         try{
           const ap=await aipAirport(icao);
           if(!ap){freqErr('openAIP knows no airport '+icao+' — enter the frequency manually.');return;}
-          const {twr,info}=pickFreqs(ap);
+          const {twr,info,gnd}=pickFreqs(ap);
           const main=twr||info;
           if(!main){freqErr('openAIP lists no frequency for '+icao+' — enter it manually.');return;}
           freq=main.value;verified=true;
           if(!name) name=ap.name||icao;
-          if(info&&info.value!==main.value) infoRow={name:name+' Info',icao,freq:info.value};
+          if(info&&info.value!==main.value) extraRows.push({name:name+' Info',icao,freq:info.value});
+          if(gnd&&gnd.value!==main.value) extraRows.push({name:name+' Ground',icao,freq:gnd.value});
         }catch(e){freqErr('openAIP lookup failed — add the map key via Account…, or enter the frequency manually.');return;}
       }
       if(!name||!freq){freqErr('Enter an ICAO for auto-lookup, or a name and a frequency.');return;}
       try{
         const row=await api('/freqs',{method:'POST',body:JSON.stringify({name,icao,freq,verified})});
         freqs.push(row);
-        if(infoRow&&!freqs.some(f=>f.name.toLowerCase()===infoRow.name.toLowerCase())){
-          try{freqs.push(await api('/freqs',{method:'POST',body:JSON.stringify({...infoRow,verified:true})}));}catch(e){}
+        for(const extra of extraRows){
+          if(freqs.some(f=>f.name.toLowerCase()===extra.name.toLowerCase())) continue;
+          try{freqs.push(await api('/freqs',{method:'POST',body:JSON.stringify({...extra,verified:true})}));}catch(e){}
         }
         freqs.sort((a,b)=>a.name.localeCompare(b.name));
         freqErr('');
