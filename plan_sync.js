@@ -342,10 +342,14 @@ window.velisWp = (function(){
   }
 
   function wipeVelisLocal(){
+    // Logout wipes USER data (plans, cached profile) — device configuration
+    // (openAIP key, map prefs, aircraft selection) belongs to the browser,
+    // not the account, and survives.
+    const KEEP=new Set([OPENAIP_KEY,MAP_SNAP_KEY,MAP_AIR_KEY,AC_KEY]);
     const keys=[];
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);
-      if(k&&k.startsWith('velis_')) keys.push(k);
+      if(k&&k.startsWith('velis_')&&!KEEP.has(k)) keys.push(k);
     }
     for(const k of keys) localStorage.removeItem(k);
   }
