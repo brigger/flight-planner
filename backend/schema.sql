@@ -66,3 +66,11 @@ CREATE TABLE IF NOT EXISTS flight_plans (
 -- NULL marks a pre-column row that bootstrap() backfills from the bundle.
 ALTER TABLE flight_plans
   ADD COLUMN IF NOT EXISTS aircraft VARCHAR(20) NULL AFTER name;
+
+-- Frequency directory: optional ICAO ident for openAIP auto-lookup and the
+-- timestamp of the last successful openAIP verification.
+ALTER TABLE freq_directory
+  ADD COLUMN IF NOT EXISTS icao VARCHAR(8) NULL AFTER name;
+
+ALTER TABLE freq_directory
+  ADD COLUMN IF NOT EXISTS checked_at TIMESTAMP NULL DEFAULT NULL;

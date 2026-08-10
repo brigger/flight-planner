@@ -775,21 +775,28 @@ def valid_freq_entry(data):
 @app.get("/api/freqs")
 def list_freqs():
     c = conn(); cur = c.cursor(dictionary=True)
-    cur.execute("SELECT id, name, freq FROM freq_directory ORDER BY name")
+    cur.execute("SELECT id, name, icao, freq, checked_at FROM freq_directory ORDER BY name")
     rows = cur.fetchall()
     cur.close(); c.close()
+    for r in rows:
+        if r.get("checked_at"):
+            r["checked_at"] = r["checked_at"].isoformat()
     return jsonify(rows)
 
 
 @app.post("/api/freqs")
 @require_admin
 def create_freq():
-    name, freq = valid_freq_entry(request.get_json(force=True, silent=True) or {})
+    body = request.get_json(force=True, silent=True) or {}
+    name, freq = valid_freq_entry(body)
     if not name:
         return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    icao = (str(body.get("icao") or "").strip().upper()[:8]) or None
+    checked = datetime.utcnow() if body.get("verified") else None
     c = conn(); cur = c.cursor()
     try:
-        cur.execute("INSERT INTO freq_directory (name, freq) VALUES (%s, %s)", (name, freq))
+        cur.execute("INSERT INTO freq_directory (name, icao, freq, checked_at) VALUES (%s, %s, %s, %s)",
+                    (name, icao, freq, checked))
         fid = cur.lastrowid
     except mysql.connector.IntegrityError as e:
         if e.errno == errorcode.ER_DUP_ENTRY:
@@ -797,19 +804,23 @@ def create_freq():
         raise
     finally:
         cur.close(); c.close()
-    return jsonify({"id": fid, "name": name, "freq": freq}), 201
+    return jsonify({"id": fid, "name": name, "icao": icao, "freq": freq,
+                    "checked_at": checked.isoformat() if checked else None}), 201
 
 
 @app.put("/api/freqs/<int:fid>")
 @require_admin
 def update_freq(fid):
-    name, freq = valid_freq_entry(request.get_json(force=True, silent=True) or {})
+    body = request.get_json(force=True, silent=True) or {}
+    name, freq = valid_freq_entry(body)
     if not name:
         return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    icao = (str(body.get("icao") or "").strip().upper()[:8]) or None
+    checked = datetime.utcnow() if body.get("verified") else None
     c = conn(); cur = c.cursor()
     try:
-        cur.execute("UPDATE freq_directory SET name = %s, freq = %s WHERE id = %s",
-                    (name, freq, fid))
+        cur.execute("UPDATE freq_directory SET name = %s, icao = %s, freq = %s, checked_at = %s WHERE id = %s",
+                    (name, icao, freq, checked, fid))
         ok = cur.rowcount > 0
     except mysql.connector.IntegrityError as e:
         if e.errno == errorcode.ER_DUP_ENTRY:

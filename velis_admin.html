@@ -57,7 +57,10 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .tbl .ren-btn{border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:4px;}
 .tbl .ren-btn:hover{background:var(--blue-bg);}
 /* Waypoint-frequency directory — in-place editable cells */
-#freqs-tbl{max-width:460px;}
+#freqs-tbl{max-width:640px;}
+.freq-chk{font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;margin-left:4px;font-family:var(--font);}
+.freq-chk.ok{color:#27500A;background:#EAF3DE;border:none;}
+.freq-chk.warn{color:#7A5700;background:#FFF8E7;border:1px solid #F2DDA0;cursor:pointer;}
 #freqs-tbl tbody tr{cursor:default;}
 #freqs-tbl tbody tr:hover{background:transparent;}
 .cell-edit{font-family:var(--font);font-size:12.5px;color:var(--tx);border:none;background:transparent;outline:none;width:100%;padding:2px 0;border-bottom:1px solid transparent;}
@@ -139,10 +142,11 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       <div style="overflow-x:auto;">
         <table class="tbl" id="freqs-tbl">
           <thead><tr>
-            <th>Name</th><th style="width:120px;">Frequency</th><th style="width:40px;"></th>
+            <th style="width:64px;">ICAO</th><th>Name</th><th style="width:100px;">Frequency</th><th style="width:150px;">Checked</th><th style="width:40px;"></th>
           </tr></thead>
-          <tbody id="freqs-body"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+          <tbody id="freqs-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
         </table>
+        <p class="sub" id="freqs-aip-note" hidden style="margin-top:8px;">openAIP lookups and checks need the map key on this device — add it via the disc menu → Account…</p>
       </div>
     </div>
 
@@ -192,6 +196,66 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   let users=[], plans=[], filterUserId=null, freqs=[], meUser=null;
 
   /* ── waypoint / frequency directory ── */
+  // openAIP airport lookup — same personal key as the map overlay.
+  const _aipCache={};
+  async function aipAirport(icao){
+    icao=icao.toUpperCase();
+    if(icao in _aipCache) return _aipCache[icao];
+    const key=localStorage.getItem('velis_openaip_key')||'';
+    if(!key) throw new Error('no openAIP key on this device');
+    const r=await fetch('https://api.core.openaip.net/api/airports?search='+encodeURIComponent(icao)+'&limit=6',
+      {headers:{'x-openaip-api-key':key}});
+    if(!r.ok) throw new Error('openAIP '+r.status);
+    const items=(await r.json()).items||[];
+    return (_aipCache[icao]=items.find(a=>String(a.icaoCode||'').toUpperCase()===icao)||null);
+  }
+  function pickFreqs(ap){
+    const fr=((ap&&ap.frequencies)||[]).filter(f=>f&&f.value)
+      .map(f=>({label:String(f.name||''),name:String(f.name||'').toUpperCase(),value:String(f.value),primary:!!f.primary}));
+    const by=pat=>fr.find(f=>f.name.includes(pat));
+    return {all:fr,
+            twr:by('TWR')||by('TOWER')||fr.find(f=>f.primary)||fr[0]||null,
+            info:by('AFIS')||by('INFO')||by('RADIO')||null};
+  }
+  async function verifyFreqs(){
+    const note=document.getElementById('freqs-aip-note');
+    const hasKey=!!(localStorage.getItem('velis_openaip_key')||'');
+    if(note) note.hidden=hasKey;
+    if(!hasKey) return;
+    for(const f of freqs){
+      if(!f.icao) continue;
+      let ap=null;
+      try{ap=await aipAirport(f.icao);}catch(e){return;}   // openAIP down / no key — skip quietly
+      const cell=document.querySelector(`[data-chk="${f.id}"]`);
+      if(!cell) continue;
+      const dateTxt=()=>esc(f.checked_at?fmtDate(f.checked_at):'—');
+      if(!ap){cell.innerHTML=dateTxt()+' <span class="freq-chk warn" title="openAIP knows no airport '+esc(f.icao)+'">?</span>';continue;}
+      const {all,twr,info}=pickFreqs(ap);
+      const want=/\binfo$/i.test(f.name)?(info||twr):(twr||info);
+      const ok=all.some(x=>x.value===String(f.freq).trim());
+      if(ok){
+        // Confirmed — refresh the stamp at most once a day.
+        if(!f.checked_at||(Date.now()-new Date(f.checked_at).getTime())>20*3600*1000){
+          try{
+            await api(`/freqs/${f.id}`,{method:'PUT',body:JSON.stringify({name:f.name,freq:f.freq,icao:f.icao,verified:true})});
+            f.checked_at=new Date().toISOString();
+          }catch(e){}
+        }
+        cell.innerHTML=dateTxt()+' <span class="freq-chk ok" title="Confirmed by openAIP">✓</span>';
+      }else if(want){
+        cell.innerHTML=dateTxt()+' <button type="button" class="freq-chk warn" title="openAIP lists '+esc(want.value)+' ('+esc(want.label)+') — click to apply">→ '+esc(want.value)+'</button>';
+        cell.querySelector('button').addEventListener('click',async()=>{
+          try{
+            await api(`/freqs/${f.id}`,{method:'PUT',body:JSON.stringify({name:f.name,freq:want.value,icao:f.icao,verified:true})});
+            f.freq=want.value;f.checked_at=new Date().toISOString();
+            renderFreqs();verifyFreqs();
+          }catch(e){freqErr('Update failed: '+e.message);}
+        });
+      }else{
+        cell.innerHTML=dateTxt()+' <span class="freq-chk warn" title="openAIP lists no frequencies for '+esc(f.icao)+'">?</span>';
+      }
+    }
+  }
   function freqErr(msg){
     const el=document.getElementById('freqs-err');
     el.textContent=msg||''; el.hidden=!msg;
@@ -199,50 +263,77 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   function renderFreqs(){
     const body=document.getElementById('freqs-body');
     body.innerHTML=freqs.map(f=>`<tr data-fid="${f.id}">
+      <td><input class="cell-edit" data-k="icao" value="${esc(f.icao||'')}" maxlength="8" style="text-transform:uppercase;"></td>
       <td><input class="cell-edit" data-k="name" value="${esc(f.name)}"></td>
       <td><input class="cell-edit" data-k="freq" value="${esc(f.freq)}"></td>
+      <td class="muted" data-chk="${f.id}">${f.checked_at?esc(fmtDate(f.checked_at)):'—'}</td>
       <td class="action"><button type="button" class="del-btn" data-fdel="${f.id}" title="Remove entry">×</button></td>
     </tr>`).join('')+`<tr>
-      <td><input class="cell-edit" id="freq-new-name" placeholder="new waypoint…"></td>
-      <td><input class="cell-edit" id="freq-new-freq" placeholder="frequency…"></td>
+      <td><input class="cell-edit" id="freq-new-icao" placeholder="ICAO…" maxlength="8" style="text-transform:uppercase;"></td>
+      <td><input class="cell-edit" id="freq-new-name" placeholder="name (optional)…"></td>
+      <td><input class="cell-edit" id="freq-new-freq" placeholder="auto"></td>
+      <td class="muted">—</td>
       <td class="action"><button type="button" class="add-btn" id="freq-add" title="Add entry">+</button></td>
     </tr>`;
 
     body.querySelectorAll('tr[data-fid] .cell-edit').forEach(inp=>{
       inp.addEventListener('change',async()=>{
         const tr=inp.closest('tr'), fid=+tr.dataset.fid;
+        const icao=tr.querySelector('[data-k="icao"]').value.trim().toUpperCase();
         const name=tr.querySelector('[data-k="name"]').value.trim();
         const freq=tr.querySelector('[data-k="freq"]').value.trim();
         if(!name||!freq) return;          // wait until both are filled
         try{
-          await api(`/freqs/${fid}`,{method:'PUT',body:JSON.stringify({name,freq})});
+          await api(`/freqs/${fid}`,{method:'PUT',body:JSON.stringify({name,freq,icao})});
           const f=freqs.find(x=>x.id===fid);
-          if(f){f.name=name;f.freq=freq;}
+          if(f){f.name=name;f.freq=freq;f.icao=icao;f.checked_at=null;}
           freqErr('');
+          renderFreqs();verifyFreqs();    // manual edit → re-check against openAIP
         }catch(e){
           freqErr(e.status===409?'An entry with that name already exists.':'Could not save: '+e.message);
           renderFreqs();                  // roll back to server truth
         }
       });
     });
+    const addIcao=document.getElementById('freq-new-icao');
     const addName=document.getElementById('freq-new-name');
     const addFreq=document.getElementById('freq-new-freq');
     async function addEntry(){
-      const name=addName.value.trim(), freq=addFreq.value.trim();
-      if(!name||!freq){freqErr('Both a name and a frequency are needed.');return;}
+      const icao=addIcao.value.trim().toUpperCase();
+      let name=addName.value.trim(), freq=addFreq.value.trim();
+      let verified=false, infoRow=null;
+      if(icao&&!freq){
+        // Auto-lookup: TWR (or AFIS/Info) from openAIP; a distinct AD-Info
+        // frequency becomes a second "<name> Info" entry.
+        freqErr('');
+        try{
+          const ap=await aipAirport(icao);
+          if(!ap){freqErr('openAIP knows no airport '+icao+' — enter the frequency manually.');return;}
+          const {twr,info}=pickFreqs(ap);
+          const main=twr||info;
+          if(!main){freqErr('openAIP lists no frequency for '+icao+' — enter it manually.');return;}
+          freq=main.value;verified=true;
+          if(!name) name=ap.name||icao;
+          if(info&&info.value!==main.value) infoRow={name:name+' Info',icao,freq:info.value};
+        }catch(e){freqErr('openAIP lookup failed — add the map key via Account…, or enter the frequency manually.');return;}
+      }
+      if(!name||!freq){freqErr('Enter an ICAO for auto-lookup, or a name and a frequency.');return;}
       try{
-        const row=await api('/freqs',{method:'POST',body:JSON.stringify({name,freq})});
+        const row=await api('/freqs',{method:'POST',body:JSON.stringify({name,icao,freq,verified})});
         freqs.push(row);
+        if(infoRow&&!freqs.some(f=>f.name.toLowerCase()===infoRow.name.toLowerCase())){
+          try{freqs.push(await api('/freqs',{method:'POST',body:JSON.stringify({...infoRow,verified:true})}));}catch(e){}
+        }
         freqs.sort((a,b)=>a.name.localeCompare(b.name));
         freqErr('');
-        renderFreqs();
-        document.getElementById('freq-new-name').focus();
+        renderFreqs();verifyFreqs();
+        document.getElementById('freq-new-icao').focus();
       }catch(e){
         freqErr(e.status===409?'An entry with that name already exists.':'Could not add: '+e.message);
       }
     }
     document.getElementById('freq-add').addEventListener('click',addEntry);
-    [addName,addFreq].forEach(inp=>inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')addEntry();}));
+    [addIcao,addName,addFreq].forEach(inp=>inp.addEventListener('keydown',ev=>{if(ev.key==='Enter')addEntry();}));
     body.querySelectorAll('[data-fdel]').forEach(btn=>{
       btn.addEventListener('click',async()=>{
         const fid=+btn.dataset.fdel;
@@ -263,6 +354,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     try{
       freqs=await api('/freqs');
       renderFreqs();
+      verifyFreqs();                       // startup check against openAIP
     }catch(e){
       freqErr('Could not load the frequency directory: '+e.message);
       document.getElementById('freqs-body').innerHTML='';
@@ -457,6 +549,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=32" defer></script>
+<script src="plan_sync.js?v=33" defer></script>
 </body>
 </html>

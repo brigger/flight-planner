@@ -133,6 +133,7 @@ window.velisWp = (function(){
 .plan-menu button{display:flex;align-items:center;width:100%;min-height:44px;padding:10px 14px;border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--tx,#1a1a1a);text-align:left;cursor:pointer;border-radius:6px;gap:8px;}
 .plan-menu button:hover{background:var(--bg-sec,#f5f4f1);}
 .plan-menu button:disabled{opacity:0.45;cursor:not-allowed;}
+.plan-menu button[hidden]{display:none !important;}
 .plan-menu .who{padding:10px 14px 6px;font-size:10.5px;color:var(--tx2,#6b6660);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
 .plan-menu .who .em{text-transform:none;letter-spacing:0;font-weight:500;color:var(--tx,#1a1a1a);display:block;font-size:12px;margin-top:2px;}
 .plan-menu .sep{height:1px;background:var(--bd,#e2ddd6);margin:4px 6px;}
