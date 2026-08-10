@@ -53,7 +53,9 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .tbl .open-btn{border:0.5px solid #c0d8f0;background:var(--blue-bg);color:var(--blue);cursor:pointer;font-size:11px;font-weight:600;line-height:1;padding:5px 10px;border-radius:5px;margin-right:4px;vertical-align:middle;}
 .tbl .open-btn:hover{background:var(--blue);color:#fff;}
 .tbl .open-btn:disabled{opacity:0.5;cursor:wait;}
-.tbl td.action{text-align:right;width:100px;padding:4px 8px;white-space:nowrap;}
+.tbl td.action{text-align:right;width:130px;padding:4px 8px;white-space:nowrap;}
+.tbl .ren-btn{border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:4px;}
+.tbl .ren-btn:hover{background:var(--blue-bg);}
 /* Waypoint-frequency directory — in-place editable cells */
 #freqs-tbl{max-width:460px;}
 #freqs-tbl tbody tr{cursor:default;}
@@ -329,7 +331,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
           <td>${esc(full)}</td>
           <td class="muted">${esc(p.user_email)}</td>
           <td class="muted">${esc(fmtDate(p.updated_at))}</td>
-          <td class="action"><button type="button" class="open-btn" data-open="${p.id}" title="Open this plan in the planner">Open</button><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
+          <td class="action"><button type="button" class="open-btn" data-open="${p.id}" title="Open this plan in the planner">Open</button><button type="button" class="ren-btn" data-ren="${p.id}" title="Rename this plan">✎</button><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
         </tr>`;
       }).join('')
     ).join('');
@@ -392,6 +394,22 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     filterUserId=null; renderUsers(); renderPlans();
   });
   document.getElementById('plans-body').addEventListener('click',async ev=>{
+    const renBtn=ev.target.closest('[data-ren]');
+    if(renBtn){
+      ev.stopPropagation();
+      const pid=+renBtn.dataset.ren;
+      const plan=plans.find(p=>p.id===pid);
+      const name=prompt('Rename plan:',plan?plan.name:'');
+      if(!name||!name.trim()||(plan&&name.trim()===plan.name)) return;
+      try{
+        await api(`/admin/plans/${pid}`,{method:'PUT',body:JSON.stringify({name:name.trim()})});
+        if(plan) plan.name=name.trim();
+        renderPlans();
+      }catch(e){
+        alert(e.status===409?'That user already has a plan with this name.':'Rename failed: '+e.message);
+      }
+      return;
+    }
     const openBtn=ev.target.closest('[data-open]');
     if(openBtn){
       ev.stopPropagation();

@@ -867,6 +867,28 @@ def admin_delete_plan(pid):
     return {"ok": True}
 
 
+@app.put("/api/admin/plans/<int:pid>")
+@require_admin
+def admin_rename_plan(pid):
+    body = request.get_json(force=True, silent=True) or {}
+    name = (body.get("name") or "").strip()
+    if not name:
+        abort(400, "name required")
+    c = conn(); cur = c.cursor()
+    try:
+        cur.execute("UPDATE flight_plans SET name = %s WHERE id = %s", (name, pid))
+        ok = cur.rowcount > 0
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            abort(409, "name exists")
+        raise
+    finally:
+        cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True, "name": name}
+
+
 @app.get("/api/admin/plans/<int:pid>")
 @require_admin
 def admin_get_plan(pid):
