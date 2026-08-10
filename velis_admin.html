@@ -146,6 +146,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
           </tr></thead>
           <tbody id="freqs-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
         </table>
+        <p class="sub" id="freqs-status" style="margin-top:8px;" hidden></p>
         <p class="sub" id="freqs-aip-note" hidden style="margin-top:8px;">openAIP lookups and checks need the map key on this device — add it via the disc menu → Account…</p>
         <p class="sub" style="margin-top:8px;">⚠ openAIP is community-maintained — excellent for catching changes, but for the frequencies you actually call, the official VFR publications (VFR Manual / AIP) remain the authority.</p>
       </div>
@@ -211,13 +212,17 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
     return (_aipCache[icao]=items.find(a=>String(a.icaoCode||'').toUpperCase()===icao)||null);
   }
   function pickFreqs(ap){
+    // openAIP frequency type codes: 14 Tower, 10 Information, 7 FIS,
+    // 9 Ground, 1 Apron, 4 CTAF, 16 Radio — prefer the typed field, fall
+    // back to name matching (military fields label things creatively).
     const fr=((ap&&ap.frequencies)||[]).filter(f=>f&&f.value)
-      .map(f=>({label:String(f.name||''),name:String(f.name||'').toUpperCase(),value:String(f.value),primary:!!f.primary}));
+      .map(f=>({label:String(f.name||''),name:String(f.name||'').toUpperCase(),value:String(f.value),primary:!!f.primary,type:typeof f.type==='number'?f.type:-1}));
     const by=pat=>fr.find(f=>f.name.includes(pat));
+    const byType=(...ts)=>fr.find(f=>ts.includes(f.type));
     return {all:fr,
-            twr:by('TWR')||by('TOWER')||fr.find(f=>f.primary)||fr[0]||null,
-            info:by('AFIS')||by('INFO')||by('RADIO')||null,
-            gnd:by('GND')||by('GROUND')||by('APRON')||null};
+            twr:byType(14)||by('TWR')||by('TOWER')||fr.find(f=>f.primary)||fr[0]||null,
+            info:byType(10,7)||by('AFIS')||by('INFO')||by('RADIO')||null,
+            gnd:byType(9,1)||by('GND')||by('GROUND')||by('APRON')||null};
   }
   async function verifyFreqs(){
     const note=document.getElementById('freqs-aip-note');
@@ -320,6 +325,11 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
           if(!name) name=ap.name||icao;
           if(info&&info.value!==main.value) extraRows.push({name:name+' Info',icao,freq:info.value});
           if(gnd&&gnd.value!==main.value) extraRows.push({name:name+' Ground',icao,freq:gnd.value});
+          // Full transparency: everything openAIP published for this field.
+          const st=document.getElementById('freqs-status');
+          st.textContent='openAIP '+icao+': '+(pickFreqs(ap).all.map(x=>(x.label||'?')+' '+x.value).join(' · ')||'no frequencies')
+            +' — adding '+(1+extraRows.length)+' entr'+(extraRows.length?'ies':'y')+'.';
+          st.hidden=false;
         }catch(e){freqErr('openAIP lookup failed — add the map key via Account…, or enter the frequency manually.');return;}
       }
       if(!name||!freq){freqErr('Enter an ICAO for auto-lookup, or a name and a frequency.');return;}
