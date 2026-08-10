@@ -74,3 +74,16 @@ ALTER TABLE freq_directory
 
 ALTER TABLE freq_directory
   ADD COLUMN IF NOT EXISTS checked_at TIMESTAMP NULL DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS user_freqs (
+  id         INT          NOT NULL AUTO_INCREMENT,
+  user_id    INT          NOT NULL,
+  name       VARCHAR(80)  NOT NULL,
+  icao       VARCHAR(8)   NULL,
+  freq       VARCHAR(20)  NOT NULL,
+  checked_at TIMESTAMP    NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_user_freq_name (user_id, name),
+  KEY idx_uf_user (user_id),
+  CONSTRAINT fk_uf_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

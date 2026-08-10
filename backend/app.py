@@ -244,13 +244,13 @@ def valid_name(raw):
 def send_magic_email(to_email, first_name, url, purpose):
     """purpose: 'verify' (first time) or 'login' (returning)."""
     if purpose == "verify":
-        subject  = "Velis Electro — verify your email"
+        subject  = "Flight Planner — verify your email"
         greeting = f"Welcome aboard, {first_name}."
         lede     = "One last step — tap the button below to verify your email and unlock your flight planner account."
         cta      = "Verify & take off"
         ttl      = f"{VERIFY_HOURS} hours"
     else:
-        subject  = "Velis Electro — your sign-in link"
+        subject  = "Flight Planner — your sign-in link"
         greeting = f"Cleared to board, {first_name}."
         lede     = "Tap the button below to sign in to your flight planner."
         cta      = "Sign in"
@@ -258,7 +258,7 @@ def send_magic_email(to_email, first_name, url, purpose):
 
     html = f"""<!DOCTYPE html><html><body style="margin:0;padding:32px 20px;background:#0a0a0b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#f5f2ec;">
 <div style="max-width:520px;margin:0 auto;background:#13131a;border:1px solid #232327;border-radius:14px;padding:32px 28px;">
-  <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#ffb020;font-weight:700;margin-bottom:18px;">Velis Electro · Flight Planner</div>
+  <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#ffb020;font-weight:700;margin-bottom:18px;">Brigger · Flight Planner</div>
   <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:26px;line-height:1.2;margin:0 0 14px;font-weight:600;color:#f5f2ec;">{esc(greeting)}</h1>
   <p style="margin:0 0 24px;color:#c8c3b7;font-size:15px;line-height:1.55;">{esc(lede)}</p>
   <p style="margin:0 0 24px;"><a href="{esc(url)}" style="display:inline-block;background:#ffb020;color:#0a0a0b;font-weight:700;padding:14px 28px;border-radius:8px;text-decoration:none;font-size:14px;letter-spacing:0.02em;">{esc(cta)}</a></p>
@@ -286,10 +286,10 @@ def send_admin_new_user_email(user_email, first_name, last_name):
     """Best-effort ops ping — never blocks registration if it fails."""
     if not ADMIN_EMAIL or not SMTP_USERNAME:
         return
-    subject = f"Velis Planner — new signup: {first_name} {last_name}"
+    subject = f"Flight Planner — new signup: {first_name} {last_name}"
     html = (
         f"<!DOCTYPE html><html><body style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0a0a0b;max-width:520px;margin:0 auto;padding:20px;\">"
-        f"<h2 style=\"margin:0 0 14px;font-weight:700;\">New Velis Planner signup</h2>"
+        f"<h2 style=\"margin:0 0 14px;font-weight:700;\">New Flight Planner signup</h2>"
         f"<table style=\"font-size:14px;border-collapse:collapse;\">"
         f"<tr><td style=\"color:#6b6660;padding:4px 18px 4px 0;\">Name</td><td><strong>{esc(first_name)} {esc(last_name)}</strong></td></tr>"
         f"<tr><td style=\"color:#6b6660;padding:4px 18px 4px 0;\">Email</td><td><a href=\"mailto:{esc(user_email)}\" style=\"color:#185FA5;\">{esc(user_email)}</a></td></tr>"
@@ -617,7 +617,7 @@ def contact():
     when = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
     body_html = (
         f"<!DOCTYPE html><html><body style=\"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0a0a0b;max-width:560px;margin:0 auto;padding:20px;\">"
-        f"<h2 style=\"margin:0 0 14px;font-weight:700;\">Velis Planner — contact form</h2>"
+        f"<h2 style=\"margin:0 0 14px;font-weight:700;\">Flight Planner — contact form</h2>"
         f"<table style=\"font-size:14px;border-collapse:collapse;\">"
         f"<tr><td style=\"color:#6b6660;padding:4px 18px 4px 0;vertical-align:top;\">From</td><td><strong>{esc(name)}</strong> &lt;<a href=\"mailto:{esc(email)}\" style=\"color:#185FA5;\">{esc(email)}</a>&gt;</td></tr>"
         f"<tr><td style=\"color:#6b6660;padding:4px 18px 4px 0;vertical-align:top;\">When</td><td>{when}</td></tr>"
@@ -632,7 +632,7 @@ def contact():
     msg["From"]     = FROM_EMAIL
     msg["To"]       = ADMIN_EMAIL
     msg["Reply-To"] = email
-    msg["Subject"]  = f"Velis Planner — message from {name}"
+    msg["Subject"]  = f"Flight Planner — message from {name}"
     msg.attach(MIMEText(body_html, "html"))
     try:
         s = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=15)
@@ -716,12 +716,21 @@ def create_plan():
 @require_user
 def update_plan(pid):
     body = request.get_json(force=True) or {}
+    has_json = "plan_json" in body
     plan_json = json.dumps(body.get("plan_json") or {})
     name = (body.get("name") or "").strip() or None
     aircraft = str(body.get("aircraft") or "").strip()[:20] or None
+    if not name and not has_json:
+        abort(400, "nothing to update")
     c = conn(); cur = c.cursor()
     try:
-        if name:
+        if name and not has_json:
+            # Rename only — leave the stored bundle untouched.
+            cur.execute(
+                "UPDATE flight_plans SET name = %s WHERE id = %s AND user_id = %s",
+                (name, pid, request.user["id"]),
+            )
+        elif name:
             cur.execute(
                 "UPDATE flight_plans SET name = %s, aircraft = COALESCE(%s, aircraft), plan_json = %s "
                 "WHERE id = %s AND user_id = %s",
@@ -846,6 +855,93 @@ def delete_freq(fid):
 
 
 # ── admin routes ───────────────────────────────────────────────────────
+# ── personal frequency directory ───────────────────────────────────────
+# Each user's own table — it alone feeds their NAV-plan dropdown. Seeded
+# from the global defaults (freq_directory) on first access.
+@app.get("/api/myfreqs")
+@require_user
+def list_my_freqs():
+    uid = request.user["id"]
+    c = conn(); cur = c.cursor(dictionary=True)
+    cur.execute("SELECT COUNT(*) AS n FROM user_freqs WHERE user_id = %s", (uid,))
+    if cur.fetchone()["n"] == 0:
+        cur.execute(
+            "INSERT INTO user_freqs (user_id, name, icao, freq, checked_at) "
+            "SELECT %s, name, icao, freq, checked_at FROM freq_directory",
+            (uid,),
+        )
+    cur.execute("SELECT id, name, icao, freq, checked_at FROM user_freqs "
+                "WHERE user_id = %s ORDER BY name", (uid,))
+    rows = cur.fetchall()
+    cur.close(); c.close()
+    for r in rows:
+        if r.get("checked_at"):
+            r["checked_at"] = r["checked_at"].isoformat()
+    return jsonify(rows)
+
+
+@app.post("/api/myfreqs")
+@require_user
+def create_my_freq():
+    body = request.get_json(force=True, silent=True) or {}
+    name, freq = valid_freq_entry(body)
+    if not name:
+        return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    icao = (str(body.get("icao") or "").strip().upper()[:8]) or None
+    checked = datetime.utcnow() if body.get("verified") else None
+    c = conn(); cur = c.cursor()
+    try:
+        cur.execute("INSERT INTO user_freqs (user_id, name, icao, freq, checked_at) VALUES (%s, %s, %s, %s, %s)",
+                    (request.user["id"], name, icao, freq, checked))
+        fid = cur.lastrowid
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            return jsonify({"error": "An entry with that name already exists."}), 409
+        raise
+    finally:
+        cur.close(); c.close()
+    return jsonify({"id": fid, "name": name, "icao": icao, "freq": freq,
+                    "checked_at": checked.isoformat() if checked else None}), 201
+
+
+@app.put("/api/myfreqs/<int:fid>")
+@require_user
+def update_my_freq(fid):
+    body = request.get_json(force=True, silent=True) or {}
+    name, freq = valid_freq_entry(body)
+    if not name:
+        return jsonify({"error": "Name (max 80) and frequency (max 20) are required."}), 400
+    icao = (str(body.get("icao") or "").strip().upper()[:8]) or None
+    checked = datetime.utcnow() if body.get("verified") else None
+    c = conn(); cur = c.cursor()
+    try:
+        cur.execute("UPDATE user_freqs SET name = %s, icao = %s, freq = %s, checked_at = %s "
+                    "WHERE id = %s AND user_id = %s",
+                    (name, icao, freq, checked, fid, request.user["id"]))
+        ok = cur.rowcount > 0
+    except mysql.connector.IntegrityError as e:
+        if e.errno == errorcode.ER_DUP_ENTRY:
+            return jsonify({"error": "An entry with that name already exists."}), 409
+        raise
+    finally:
+        cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True}
+
+
+@app.delete("/api/myfreqs/<int:fid>")
+@require_user
+def delete_my_freq(fid):
+    c = conn(); cur = c.cursor()
+    cur.execute("DELETE FROM user_freqs WHERE id = %s AND user_id = %s", (fid, request.user["id"]))
+    ok = cur.rowcount > 0
+    cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True}
+
+
 @app.get("/api/admin/users")
 @require_admin
 def admin_list_users():
@@ -1100,7 +1196,7 @@ def landing_html(first_name="", last_name="", email="", purpose="verify",
         stamp_color = "#7ed97a"
         if purpose == "verify":
             greeting = "Cleared for takeoff."
-            subtitle = "Your Velis Electro flight planner account is verified and this device is signed in. Happy flying."
+            subtitle = "Your Flight Planner account is verified and this device is signed in. Happy flying."
         else:
             greeting = "Welcome back, Captain."
             subtitle = "You're signed in on this device. Your saved plans are a click away."

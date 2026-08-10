@@ -633,7 +633,10 @@ function renderFreqDatalist(){
 async function fetchFreqDir(){
   try{
     const API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/flight-planner/api';
-    const r=await fetch(API_BASE+'/freqs',{credentials:'include'});
+    // The personal directory feeds the dropdown; global defaults only
+    // when signed out.
+    let r=await fetch(API_BASE+'/myfreqs',{credentials:'include'});
+    if(!r.ok) r=await fetch(API_BASE+'/freqs',{credentials:'include'});
     if(!r.ok) return;
     const rows=await r.json();
     if(Array.isArray(rows)&&rows.length){
@@ -1751,7 +1754,7 @@ refreshEndurance();
 window.addEventListener('pageshow',()=>{ syncTripFromRoute(); refreshEndurance(); });
 
 </script>
-<script src="plan_sync.js?v=34" defer></script>
+<script src="plan_sync.js?v=35" defer></script>
 
 </body>
 </html>

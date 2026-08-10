@@ -87,7 +87,7 @@ window.velisWp = (function(){
   // Shared across all aircraft (same page regardless of selection).
   const SHARED_TABS = [
     { type:'about',     href:'velis_about.html', label:'About'                 },
-    { type:'dashboard', href:'velis_admin.html', label:'Dashboard', admin:true },
+    { type:'dashboard', href:'velis_admin.html', label:'Dashboard' },
   ];
 
   /* ─── CSS ─── */
