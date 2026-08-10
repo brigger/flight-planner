@@ -237,9 +237,9 @@ window.velisWp = (function(){
     <div class="auth-ok" id="plan-auth-ok">
       <div class="icon">✓</div>
       <h4>Check your inbox</h4>
-      <p>We sent a magic link to <span class="em" id="plan-auth-sent-to"></span>.</p>
+      <p id="plan-auth-ok-line">We sent a magic link to <span class="em" id="plan-auth-sent-to"></span>.</p>
       <p>Click the link in the email and you'll be signed in on this device.</p>
-      <p class="small">Not seeing it? Check spam, or <button type="button" class="link" id="plan-auth-resend">send again</button>.</p>
+      <p class="small" id="plan-auth-ok-hint">Not seeing it? Check spam, or <button type="button" class="link" id="plan-auth-resend">send again</button>.</p>
     </div>
     <div class="plan-modal-actions" id="plan-auth-actions">
       <button type="button" id="plan-auth-close">Close</button>
@@ -852,6 +852,19 @@ window.velisWp = (function(){
       pendingPayload=payload;
       pendingEndpoint=endpoint;
       showAuthOk(r.email||email);
+      // Sign-in never reveals whether the address has an account — say so,
+      // and point a mistyped/unregistered address at the fix.
+      const line=document.getElementById('plan-auth-ok-line');
+      const hint=document.getElementById('plan-auth-ok-hint');
+      if(endpoint==='/auth/login'){
+        line.innerHTML='If an account exists for <span class="em">'+esc(r.email||email)+'</span>, a sign-in link is on its way.';
+        hint.innerHTML='No email after a minute? Check spam, make sure this is the address you registered with, '
+          +'<button type="button" class="link" id="plan-auth-resend">send again</button> — or use the Create account tab.';
+      }else{
+        line.innerHTML='We sent a verification link to <span class="em">'+esc(r.email||email)+'</span>.';
+        hint.innerHTML='Not seeing it? Check spam, or <button type="button" class="link" id="plan-auth-resend">send again</button>.';
+      }
+      document.getElementById('plan-auth-resend').addEventListener('click',resendAuth);
     }catch(e){
       let msg=e.message;
       try{const j=JSON.parse(e.message.replace(/^\d+\s*/,''));if(j&&j.error)msg=j.error;}catch(_){}
