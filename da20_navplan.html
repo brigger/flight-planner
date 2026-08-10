@@ -1506,6 +1506,10 @@ document.addEventListener('velis:after-load',()=>{
   renderWP();
   syncTripFromRoute();   // trip time follows the loaded route (auto mode only)
   refreshEndurance();
+  // Reconcile the Route Planner with the loaded NAV route — bundles saved
+  // before the always-on sync can carry a stale route_state. The push marks
+  // the bundle dirty, which a freshly loaded plan isn't — mark it saved.
+  if(pushNavToRoutePlanner()&&window.velisPlan&&window.velisPlan.markSaved) window.velisPlan.markSaved();
 });
 
 // Restored from the back/forward cache — the Route Planner may have pushed
