@@ -93,3 +93,8 @@ CREATE TABLE IF NOT EXISTS app_settings (
   v TEXT NULL,
   PRIMARY KEY (k)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Archived plans are read-only: content updates and renames are refused
+-- until the plan is de-archived. NULL = active.
+ALTER TABLE flight_plans
+  ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP NULL DEFAULT NULL;

@@ -658,13 +658,14 @@ def ping():
 def list_plans():
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at "
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, archived_at "
         "FROM flight_plans WHERE user_id = %s ORDER BY updated_at DESC",
         (request.user["id"],),
     )
     rows = cur.fetchall()
     for r in rows:
         r["updated_at"] = r["updated_at"].isoformat()
+        r["archived_at"] = r["archived_at"].isoformat() if r["archived_at"] else None
     cur.close(); c.close()
     return jsonify(rows)
 
@@ -674,7 +675,7 @@ def list_plans():
 def get_plan(pid):
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, plan_json "
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, archived_at, plan_json "
         "FROM flight_plans WHERE id = %s AND user_id = %s",
         (pid, request.user["id"]),
     )
@@ -683,6 +684,7 @@ def get_plan(pid):
     if not row:
         abort(404)
     row["updated_at"] = row["updated_at"].isoformat()
+    row["archived_at"] = row["archived_at"].isoformat() if row["archived_at"] else None
     row["plan_json"]  = json.loads(row["plan_json"])
     return jsonify(row)
 
@@ -724,6 +726,16 @@ def update_plan(pid):
         abort(400, "nothing to update")
     c = conn(); cur = c.cursor()
     try:
+        # Archived plans are read-only — refuse content updates and renames.
+        cur.execute(
+            "SELECT archived_at FROM flight_plans WHERE id = %s AND user_id = %s",
+            (pid, request.user["id"]),
+        )
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if row[0] is not None:
+            abort(423, "plan archived")
         if name and not has_json:
             # Rename only — leave the stored bundle untouched.
             cur.execute(
@@ -752,6 +764,26 @@ def update_plan(pid):
     if not ok:
         abort(404)
     return {"ok": True}
+
+
+@app.put("/api/plans/<int:pid>/archive")
+@require_user
+def archive_plan(pid):
+    body = request.get_json(force=True, silent=True) or {}
+    archived = bool(body.get("archived"))
+    c = conn(); cur = c.cursor()
+    # updated_at = updated_at keeps the ON UPDATE trigger from bumping the
+    # timestamp — archiving is not an edit.
+    cur.execute(
+        "UPDATE flight_plans SET archived_at = %s, updated_at = updated_at "
+        "WHERE id = %s AND user_id = %s",
+        (datetime.utcnow() if archived else None, pid, request.user["id"]),
+    )
+    ok = cur.rowcount > 0
+    cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True, "archived": archived}
 
 
 @app.delete("/api/plans/<int:pid>")
@@ -1007,6 +1039,12 @@ def admin_rename_plan(pid):
         abort(400, "name required")
     c = conn(); cur = c.cursor()
     try:
+        cur.execute("SELECT archived_at FROM flight_plans WHERE id = %s", (pid,))
+        row = cur.fetchone()
+        if not row:
+            abort(404)
+        if row[0] is not None:
+            abort(423, "plan archived")
         cur.execute("UPDATE flight_plans SET name = %s WHERE id = %s", (name, pid))
         ok = cur.rowcount > 0
     except mysql.connector.IntegrityError as e:
@@ -1025,7 +1063,7 @@ def admin_rename_plan(pid):
 def admin_get_plan(pid):
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, user_id, plan_json "
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, archived_at, user_id, plan_json "
         "FROM flight_plans WHERE id = %s",
         (pid,),
     )
@@ -1034,8 +1072,26 @@ def admin_get_plan(pid):
     if not row:
         abort(404)
     row["updated_at"] = row["updated_at"].isoformat()
+    row["archived_at"] = row["archived_at"].isoformat() if row["archived_at"] else None
     row["plan_json"]  = json.loads(row["plan_json"])
     return jsonify(row)
+
+
+@app.put("/api/admin/plans/<int:pid>/archive")
+@require_admin
+def admin_archive_plan(pid):
+    body = request.get_json(force=True, silent=True) or {}
+    archived = bool(body.get("archived"))
+    c = conn(); cur = c.cursor()
+    cur.execute(
+        "UPDATE flight_plans SET archived_at = %s, updated_at = updated_at WHERE id = %s",
+        (datetime.utcnow() if archived else None, pid),
+    )
+    ok = cur.rowcount > 0
+    cur.close(); c.close()
+    if not ok:
+        abort(404)
+    return {"ok": True, "archived": archived}
 
 
 @app.get("/api/admin/plans")
@@ -1043,7 +1099,7 @@ def admin_get_plan(pid):
 def admin_list_plans():
     c = conn(); cur = c.cursor(dictionary=True)
     cur.execute(
-        "SELECT p.id, p.name, COALESCE(p.aircraft,'velis') AS aircraft, p.updated_at, p.user_id, "
+        "SELECT p.id, p.name, COALESCE(p.aircraft,'velis') AS aircraft, p.updated_at, p.archived_at, p.user_id, "
         "       u.email AS user_email, u.first_name AS user_first_name, u.last_name AS user_last_name "
         "FROM flight_plans p JOIN users u ON u.id = p.user_id "
         "ORDER BY p.updated_at DESC"
@@ -1052,6 +1108,7 @@ def admin_list_plans():
     cur.close(); c.close()
     for r in rows:
         r["updated_at"] = r["updated_at"].isoformat()
+        r["archived_at"] = r["archived_at"].isoformat() if r["archived_at"] else None
     return jsonify(rows)
 
 

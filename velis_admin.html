@@ -54,9 +54,17 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
 .tbl .open-btn{border:0.5px solid #c0d8f0;background:var(--blue-bg);color:var(--blue);cursor:pointer;font-size:11px;font-weight:600;line-height:1;padding:5px 10px;border-radius:5px;margin-right:4px;vertical-align:middle;}
 .tbl .open-btn:hover{background:var(--blue);color:#fff;}
 .tbl .open-btn:disabled{opacity:0.5;cursor:wait;}
-.tbl td.action{text-align:right;width:130px;padding:4px 8px;white-space:nowrap;}
-.tbl .ren-btn{border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:4px;}
-.tbl .ren-btn:hover{background:var(--blue-bg);}
+.tbl td.action{text-align:right;width:160px;padding:4px 8px;white-space:nowrap;}
+.tbl .ren-btn,.tbl .dup-btn{border:none;background:transparent;color:var(--blue);cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:4px;}
+.tbl .ren-btn:hover,.tbl .dup-btn:hover{background:var(--blue-bg);}
+.tbl .dup-btn:disabled{opacity:0.5;cursor:wait;}
+.tbl tr.archived td:not(.action){opacity:0.55;}
+.tbl .arc-btn{border:none;background:transparent;color:var(--tx2);cursor:pointer;font-size:14px;line-height:1;padding:4px 6px;border-radius:4px;}
+.tbl .arc-btn:hover{color:var(--tx);background:var(--bg-sec);}
+.tbl .arc-btn:disabled{opacity:0.5;cursor:wait;}
+.tbl th.sortable{cursor:pointer;user-select:none;}
+.tbl th.sortable:hover{color:var(--tx);}
+.tbl th .sort-arr{display:inline-block;width:12px;color:var(--blue);}
 /* Waypoint-frequency directory — in-place editable cells */
 #freqs-tbl,#myfreqs-tbl{max-width:640px;}
 .freq-chk{font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px;margin-left:4px;font-family:var(--font);}
@@ -130,7 +138,7 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       <div style="overflow-x:auto;">
         <table class="tbl" id="plans-tbl">
           <thead><tr>
-            <th>Plan name</th><th>Owner</th><th>Email</th><th>Updated</th><th></th>
+            <th class="sortable" data-sort="name" title="Sort by plan name">Plan name<span class="sort-arr"></span></th><th>Owner</th><th>Email</th><th class="sortable" data-sort="updated" title="Sort by updated date">Updated<span class="sort-arr"></span></th><th></th>
           </tr></thead>
           <tbody id="plans-body"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
         </table>
@@ -213,6 +221,8 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   }
 
   let users=[], plans=[], filterUserId=null, meUser=null, isAdmin=false;
+  // Saved-plans sort (within each aircraft group). Default mirrors the server order.
+  let planSort={key:'updated',dir:'desc'};
 
   /* ── waypoint / frequency directories ──
      Everyone edits their PERSONAL directory — it alone feeds their NAV-plan
@@ -438,16 +448,27 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
       groups.get(k).push(p);
     });
     const keys=[...order.filter(k=>groups.has(k)),...[...groups.keys()].filter(k=>!order.includes(k))];
+    // Sort within each aircraft group. updated_at is ISO, so string compare is fine.
+    const cmp=planSort.key==='name'
+      ?(a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:'base',numeric:true})
+      :(a,b)=>String(a.updated_at||'').localeCompare(String(b.updated_at||''));
+    const dir=planSort.dir==='asc'?1:-1;
+    // Active plans first, archived at the bottom of each group.
+    groups.forEach(arr=>arr.sort((a,b)=>((a.archived_at?1:0)-(b.archived_at?1:0))||dir*cmp(a,b)));
+    document.querySelectorAll('#plans-tbl th.sortable').forEach(th=>{
+      th.querySelector('.sort-arr').textContent=th.dataset.sort===planSort.key?(planSort.dir==='asc'?'↑':'↓'):'';
+    });
     body.innerHTML=keys.map(k=>
       `<tr class="grp"><td colspan="5">${esc(AC_NAMES[k]||k)}</td></tr>`+
       groups.get(k).map(p=>{
         const full=`${p.user_first_name||''} ${p.user_last_name||''}`.trim()||'—';
-        return `<tr data-uid="${p.user_id}">
-          <td><strong>${esc(p.name)}</strong></td>
+        const arch=!!p.archived_at;
+        return `<tr data-uid="${p.user_id}" class="${arch?'archived':''}">
+          <td><strong>${esc(p.name)}</strong>${arch?' <span class="pill">archived</span>':''}</td>
           <td>${esc(full)}</td>
           <td class="muted">${esc(p.user_email)}</td>
           <td class="muted">${esc(fmtDate(p.updated_at))}</td>
-          <td class="action"><button type="button" class="open-btn" data-open="${p.id}" title="Open this plan in the planner">Open</button><button type="button" class="ren-btn" data-ren="${p.id}" title="Rename this plan">✎</button><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
+          <td class="action"><button type="button" class="open-btn" data-open="${p.id}" title="Open this plan in the planner${arch?' (read-only)':''}">Open</button><button type="button" class="dup-btn" data-dup="${p.id}" title="Duplicate this plan${isAdmin?' (copy is saved to your account)':''}">⧉</button>${arch?'':`<button type="button" class="ren-btn" data-ren="${p.id}" title="Rename this plan">✎</button>`}<button type="button" class="arc-btn" data-arc="${p.id}" data-to="${arch?0:1}" title="${arch?'De-archive this plan — make it editable again':'Archive this plan — keeps it viewable but read-only'}">${arch?'⤒':'⤓'}</button><button type="button" class="del-btn" data-del="${p.id}" title="Delete this plan">×</button></td>
         </tr>`;
       }).join('')
     ).join('');
@@ -544,6 +565,14 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   document.getElementById('plan-filter-clear').addEventListener('click',()=>{
     filterUserId=null; renderUsers(); renderPlans();
   });
+  document.querySelectorAll('#plans-tbl th.sortable').forEach(th=>{
+    th.addEventListener('click',()=>{
+      const k=th.dataset.sort;
+      if(planSort.key===k) planSort.dir=planSort.dir==='asc'?'desc':'asc';
+      else planSort={key:k,dir:k==='updated'?'desc':'asc'};
+      renderPlans();
+    });
+  });
   document.getElementById('plans-body').addEventListener('click',async ev=>{
     const renBtn=ev.target.closest('[data-ren]');
     if(renBtn){
@@ -558,6 +587,55 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
         renderPlans();
       }catch(e){
         alert(e.status===409?'That user already has a plan with this name.':'Rename failed: '+e.message);
+      }
+      return;
+    }
+    const arcBtn=ev.target.closest('[data-arc]');
+    if(arcBtn){
+      ev.stopPropagation();
+      const pid=+arcBtn.dataset.arc, to=arcBtn.dataset.to==='1';
+      arcBtn.disabled=true;
+      try{
+        await api((isAdmin?'/admin/plans/':'/plans/')+pid+'/archive',{method:'PUT',body:JSON.stringify({archived:to})});
+        const plan=plans.find(p=>p.id===pid);
+        if(plan) plan.archived_at=to?new Date().toISOString():null;
+        // If this plan is currently loaded in the planner, refresh its meta so
+        // the status line and Save behavior pick the change up immediately.
+        if(window.velisPlan&&window.velisPlan.setMetaArchived) window.velisPlan.setMetaArchived(pid,to);
+        renderPlans();
+      }catch(e){
+        alert((to?'Archive':'De-archive')+' failed: '+e.message);
+        arcBtn.disabled=false;
+      }
+      return;
+    }
+    const dupBtn=ev.target.closest('[data-dup]');
+    if(dupBtn){
+      ev.stopPropagation();
+      const pid=+dupBtn.dataset.dup;
+      dupBtn.disabled=true;
+      try{
+        // Fetch the full bundle, then create a copy under the signed-in user.
+        const full=await api((isAdmin?'/admin/plans/':'/plans/')+pid);
+        const base=String(full.name||'Plan').slice(0,100);
+        let created=null;
+        for(let n=1;n<=20&&!created;n++){
+          const name=base+(n===1?' (copy)':' (copy '+n+')');
+          try{
+            created=await api('/plans',{method:'POST',body:JSON.stringify({name,aircraft:full.aircraft,plan_json:full.plan_json})});
+          }catch(e){
+            if(e.status!==409) throw e;   // 409 = name taken → try the next suffix
+          }
+        }
+        if(!created) throw new Error('could not find a free name');
+        plans.unshift({id:created.id,name:created.name,aircraft:full.aircraft,updated_at:new Date().toISOString(),
+          user_id:meUser.id,user_email:meUser.email,user_first_name:meUser.first_name,user_last_name:meUser.last_name});
+        const u=users.find(x=>x.id===meUser.id);
+        if(u&&typeof u.plan_count==='number') u.plan_count+=1;
+        renderPlans(); renderUsers(); updateStats();
+      }catch(e){
+        alert('Duplicate failed: '+e.message);
+        dupBtn.disabled=false;
       }
       return;
     }
@@ -608,6 +686,6 @@ h3{font-size:14px;font-weight:700;margin:0 0 12px;letter-spacing:-0.02em;display
   load();
 })();
 </script>
-<script src="plan_sync.js?v=37" defer></script>
+<script src="plan_sync.js?v=38" defer></script>
 </body>
 </html>

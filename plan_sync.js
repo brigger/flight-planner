@@ -180,6 +180,7 @@ window.velisWp = (function(){
 .plan-li:hover{background:var(--bg-sec,#f5f4f1);}
 .plan-li .pn{font-weight:600;color:var(--tx,#1a1a1a);}
 .plan-li .pd{font-size:11px;color:var(--tx2,#6b6660);margin-left:6px;}
+.plan-li .parch{font-size:10px;font-weight:600;color:var(--tx2,#6b6660);background:var(--bg-sec,#f5f4f1);border:0.5px solid var(--bd,#e2ddd6);border-radius:10px;padding:1px 7px;margin-left:6px;vertical-align:1px;}
 .plan-li .del{border:none;background:transparent;color:#B08888;cursor:pointer;font-size:18px;padding:0 10px;line-height:1;min-width:32px;min-height:32px;}
 .plan-li .del:hover{color:#791F1F;}
 .plan-empty{font-size:12px;color:var(--tx2,#6b6660);padding:10px;font-style:italic;text-align:center;}
@@ -402,7 +403,7 @@ window.velisWp = (function(){
     } else {
       if(meta.id){
         parts.push(`<span class="name">${esc(meta.name||('Plan #'+meta.id))}</span>`);
-        parts.push(`<span>${dirty?'unsaved':'saved'}</span>`);
+        parts.push(`<span>${meta.archived?'archived — read-only':(dirty?'unsaved':'saved')}</span>`);
       } else {
         parts.push(`<span>${dirty?'Unsaved draft':'Not saved to server'}</span>`);
       }
@@ -645,6 +646,10 @@ window.velisWp = (function(){
     if(!ensureAuth()) return;
     const meta=currentMeta();
     if(!meta.id) return doSaveAs();
+    if(meta.archived){
+      if(confirm(`"${meta.name}" is archived and read-only. Save your changes as a copy instead?`)) return doSaveAs();
+      return;
+    }
     try{
       await api(`/plans/${meta.id}`,{method:'PUT',body:JSON.stringify({plan_json:collectBundle(),aircraft:activeAircraft().id})});
       markBundleSaved();
@@ -655,6 +660,13 @@ window.velisWp = (function(){
       if(e.status===404){
         persistMeta({id:null,name:meta.name});
         return doSaveAs();
+      }
+      if(e.status===423){
+        // Archived on the server but the local meta didn't know yet.
+        persistMeta({id:meta.id,name:meta.name,archived:true});
+        repaint();
+        if(confirm(`"${meta.name}" is archived and read-only. Save your changes as a copy instead?`)) return doSaveAs();
+        return;
       }
       alert('Save failed: '+e.message);
     }
@@ -709,8 +721,9 @@ window.velisWp = (function(){
         `<div class="plan-group-h">${esc(acName(k))}</div>`+
         groups.get(k).map(p=>{
           const when=new Date(p.updated_at).toLocaleString();
+          const arch=p.archived_at?'<span class="parch">archived</span>':'';
           return `<div class="plan-li" data-id="${p.id}">
-            <span><span class="pn">${esc(p.name)}</span><span class="pd">${esc(when)}</span></span>
+            <span><span class="pn">${esc(p.name)}</span>${arch}<span class="pd">${esc(when)}</span></span>
             <button type="button" class="del" data-del="${p.id}" title="Delete">×</button>
           </div>`;
         }).join('')
@@ -746,9 +759,11 @@ window.velisWp = (function(){
   // aircraft was already active.
   function applyPlanData(p,{own=true,open=false}={}){
     applyBundle(p.plan_json);
-    // Meta belongs to the plan's aircraft, not the active one.
+    // Meta belongs to the plan's aircraft, not the active one. The archived
+    // flag only travels with an adopted id — a foreign plan is saved as a
+    // fresh copy anyway.
     const planAc=AIRCRAFT.find(a=>a.id===p.aircraft)||activeAircraft();
-    persistMeta({id:own?p.id:null,name:p.name},planAc.navKey);
+    persistMeta({id:own?p.id:null,name:p.name,archived:own&&!!p.archived_at},planAc.navKey);
     markBundleSaved();
     // Plan for another aircraft → switch to it so it's on screen.
     if(planAc.id!==activeAircraft().id){switchAircraft(planAc.id);return;}
@@ -763,9 +778,27 @@ window.velisWp = (function(){
       const key=navKey||navStateKey();
       const raw=localStorage.getItem(key);
       const s=raw?JSON.parse(raw):{};
-      s.meta={id:meta.id||null,name:meta.name||'',dirty:false};
+      s.meta={id:meta.id||null,name:meta.name||'',archived:!!meta.archived,dirty:false};
       safeSetItem(key,JSON.stringify(s));
     }catch(e){}
+  }
+
+  // Called by the Dashboard when a plan is (de-)archived there, so a currently
+  // loaded plan reflects the change without a reload. Checks every aircraft's
+  // NAV-state key — the plan may belong to a non-active aircraft.
+  function setMetaArchived(pid,archived){
+    for(const ac of AIRCRAFT){
+      try{
+        const raw=localStorage.getItem(ac.navKey);
+        if(!raw) continue;
+        const s=JSON.parse(raw);
+        if(s&&s.meta&&s.meta.id===pid){
+          s.meta.archived=!!archived;
+          safeSetItem(ac.navKey,JSON.stringify(s));
+        }
+      }catch(e){}
+    }
+    repaint();
   }
 
   /* ─── Auth modal ─── */
@@ -1061,7 +1094,7 @@ window.velisWp = (function(){
   };
 
   window.velisPlan = {
-    save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew, applyPlanData,
+    save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew, applyPlanData, setMetaArchived,
     openSettings:openAuthModal,  // legacy alias
     openAuth:openAuthModal, logout:doLogout,
     markDirty:markBundleDirty, markSaved:markBundleSaved,
