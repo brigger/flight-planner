@@ -613,10 +613,10 @@ function refreshTotals(){
    intermediate (DEP has no inbound leg; DEP/DEST must never be removed).
    Empty / non-numeric DIST or EET counts as 0; if both cells are empty the
    remaining cell is left untouched. */
-function mergeAdjacentIntoRow(i,dir){
-  const j=i+dir;
-  if(!(i>0&&i<state.route.length-1&&j>0&&j<state.route.length-1)) return;
-  const src=state.route[j],dst=state.route[i];
+/* Row `dst` absorbs row `src`'s DIST + EET — the shared rule for joining two
+   legs (table merge arrows and map waypoint removal). Empty / non-numeric
+   cells count as 0; if both cells are empty the remaining cell is untouched. */
+function absorbLegData(dst,src){
   const d1=parseNum(src.dist),d2=parseNum(dst.dist);
   if(isFinite(d1)||isFinite(d2)){
     const sum=(isFinite(d1)?d1:0)+(isFinite(d2)?d2:0);
@@ -625,8 +625,16 @@ function mergeAdjacentIntoRow(i,dir){
   const t1=parseTime(src.eet),t2=parseTime(dst.eet);
   if(isFinite(t1)||isFinite(t2)){
     const sum=Math.round((isFinite(t1)?t1:0)+(isFinite(t2)?t2:0));
-    dst.eet=sum>0?fmtTime(sum):'';
+    // Keep the cells' own notation: plain minutes stay plain ("4"+"2" → "6");
+    // h:mm only when a source cell already used it or the sum crosses an hour.
+    const hadSep=/[:h.]/.test(String(src.eet||''))||/[:h.]/.test(String(dst.eet||''));
+    dst.eet=sum>0?((hadSep||sum>=60)?fmtTime(sum):String(sum)):'';
   }
+}
+function mergeAdjacentIntoRow(i,dir){
+  const j=i+dir;
+  if(!(i>0&&i<state.route.length-1&&j>0&&j<state.route.length-1)) return;
+  absorbLegData(state.route[i],state.route[j]);
   state.route.splice(j,1);
   saveState();renderWP();refreshEndurance();
 }
@@ -1527,9 +1535,15 @@ function wireWpDelete(m,p){
   if(p.idx===0||p.idx===state.route.length-1) return;
   const doDelete=()=>{
     _suppressAddUntil=Date.now()+700;          // swallow the synthesized click
+    // Join the two legs: the following row absorbs the removed row's DIST +
+    // EET (same rule as the table's merge arrows) so the totals keep the
+    // planned values instead of dropping the removed leg. Only HDG is
+    // refreshed from coords — the joined leg's track really does change.
+    absorbLegData(state.route[p.idx+1],state.route[p.idx]);
     state.route.splice(p.idx,1);
-    _refreshLegGeom(p.idx);
-    saveState();renderWP();
+    const a=parseCoordStr(state.route[p.idx-1].coord),b=parseCoordStr(state.route[p.idx].coord);
+    if(a&&b) state.route[p.idx].hdg=String(Math.round(_bearing(a,b))).padStart(3,'0');
+    saveState();renderWP();refreshTotals();
     mapToast('Removed '+(p.label||'waypoint')+' — NAV Plan and Route Planner updated.');
     renderRouteMap(false);
   };
