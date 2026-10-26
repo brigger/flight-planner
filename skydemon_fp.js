@@ -515,7 +515,7 @@ window.velisFp = (function(){
         }catch(e){aipDown=true;errors.push('openAIP: '+e.message);}
       }
       if(!res&&!osmDown){
-        try{res=await osm(()=>osmAerodrome(p.ll));}
+        try{const a=await osm(()=>osmAerodrome(p.ll)); if(a) res={ident:a.icao||'',name:a.name||'',elevFt:isFinite(a.elevFt)?a.elevFt:null};}
         catch(e){osmDown=true;errors.push('OpenStreetMap: '+e.message);}
       }
       if(res&&res.name) used.add(res.name);
