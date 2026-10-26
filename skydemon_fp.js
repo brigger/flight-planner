@@ -409,15 +409,52 @@ window.velisFp = (function(){
     return best?best.name:'';
   }
 
-  // Aerodrome by OpenStreetMap: the airfield polygon at the point (zoom 18).
-  // → {icao,name,elevFt:null}|null. Common "Flugplatz …" prefixes are dropped.
+  // Wikidata: ICAO (P239) and elevation (P2044, unit foot Q3710 / metre Q11573)
+  // of one entity — the OSM airfield polygon usually carries a wikidata tag.
+  const WD_FT='http://www.wikidata.org/entity/Q3710', WD_M='http://www.wikidata.org/entity/Q11573';
+  const wdElevFt=(amount,unit)=>{const v=parseFloat(amount);if(!isFinite(v)) return null;return unit===WD_M?Math.round(v*3.28084):(unit===WD_FT?Math.round(v):null);};
+  async function wikidataEntity(qid){
+    const r=await fetch('https://www.wikidata.org/wiki/Special:EntityData/'+encodeURIComponent(qid)+'.json');
+    if(!r.ok) throw new Error('Wikidata answered '+r.status);
+    const ent=((await r.json()).entities||{})[qid]; if(!ent) return null;
+    const cl=ent.claims||{}, val=p=>{try{return cl[p][0].mainsnak.datavalue.value;}catch(e){return null;}};
+    const icao=String(val('P239')||'').toUpperCase(), el=val('P2044');
+    return {icao:/^[A-Z]{4}$/.test(icao)?icao:'',elevFt:el?wdElevFt(el.amount,el.unit):null};
+  }
+  // Wikidata: nearest entity with an ICAO code within 3 km (slow, ~10 s).
+  async function wikidataAround(ll){
+    const q='SELECT ?icao ?amt ?unit ?loc WHERE { SERVICE wikibase:around { ?item wdt:P625 ?loc . bd:serviceParam wikibase:center "Point('+ll[1].toFixed(5)+' '+ll[0].toFixed(5)+')"^^geo:wktLiteral . bd:serviceParam wikibase:radius "3" . } ?item wdt:P239 ?icao . OPTIONAL { ?item p:P2044/psv:P2044 ?n . ?n wikibase:quantityAmount ?amt ; wikibase:quantityUnit ?unit . } } LIMIT 5';
+    const ac=typeof AbortController!=='undefined'?new AbortController():null, to=ac&&setTimeout(()=>ac.abort(),15000);
+    try{
+      const r=await fetch('https://query.wikidata.org/sparql?format=json&query='+encodeURIComponent(q),{signal:ac&&ac.signal});
+      if(!r.ok) throw new Error('Wikidata answered '+r.status);
+      const rows=((await r.json()).results||{}).bindings||[];
+      let best=null;
+      rows.forEach(b=>{
+        const m=String(b.loc&&b.loc.value||'').match(/Point\(([-\d.]+) ([-\d.]+)\)/); if(!m) return;
+        const d=distNm(ll,[+m[2],+m[1]]), icao=String(b.icao.value||'').toUpperCase();
+        if(/^[A-Z]{4}$/.test(icao)&&(!best||d<best.d)) best={d,icao,elevFt:b.amt?wdElevFt(b.amt.value,b.unit&&b.unit.value):null};
+      });
+      return best;
+    }finally{if(to) clearTimeout(to);}
+  }
+  // Aerodrome by OpenStreetMap: the airfield polygon at the point (zoom 18),
+  // ICAO and elevation from its Wikidata entity (or the nearest one with an
+  // ICAO code). → {icao,name,elevFt}|null. "Flugplatz …" prefixes are dropped.
   async function osmAerodrome(ll){
     const j=await nominatim(ll,18,true);
-    if(!/^aeroway$/.test(j.category||'')||!/aerodrome|airfield|airport|heliport/.test(j.type||'')) return null;
-    const x=j.extratags||{};
-    let name=String(j.name||'').replace(/^(Flugplatz|Flugfeld|Flughafen|Regionalflugplatz|Aérodrome d[eu']\s?|Aéroport d[eu']\s?|Aeroporto di|Aeródromo de)\s*/i,'').replace(/\s+(Airport|Airfield|Aerodrome)$/i,'').trim();
-    const icao=String(x.icao||x['icao_code']||'').toUpperCase();
-    return name||icao?{icao:/^[A-Z]{4}$/.test(icao)?icao:'',name,elevFt:null}:null;
+    const isAd=/^aeroway$/.test(j.category||'')&&/aerodrome|airfield|airport|heliport/.test(j.type||'');
+    const x=(isAd&&j.extratags)||{};
+    let name=isAd?String(j.name||'').replace(/^(Flugplatz|Flugfeld|Flughafen|Regionalflugplatz|Aérodrome d[eu']\s?|Aéroport d[eu']\s?|Aeroporto di|Aeródromo de)\s*/i,'').replace(/\s+(Airport|Airfield|Aerodrome)$/i,'').trim():'';
+    let icao=String(x.icao||x['icao_code']||'').toUpperCase(); if(!/^[A-Z]{4}$/.test(icao)) icao='';
+    let elevFt=null;
+    try{
+      let wd=null;
+      if(/^Q\d+$/.test(x.wikidata||'')) wd=await wikidataEntity(x.wikidata);
+      if(!wd||!wd.icao) wd=await wikidataAround(ll);
+      if(wd){ if(!icao) icao=wd.icao||''; elevFt=wd.elevFt; }
+    }catch(e){/* Wikidata is optional */}
+    return name||icao?{icao,name,elevFt}:null;
   }
 
   // Nearest aerodrome → {icao,name,elevFt,decl}|null. openAIP's CDN refuses

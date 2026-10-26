@@ -2114,6 +2114,7 @@ async function importFlightplanFile(file){
   document.getElementById('import-modal').hidden=true;
   if(!confirm('Route imported with '+state.route.length+' waypoints.\n\nLook up names, airfield elevations and winds aloft for '+fpFmtWhen(when)+' now, and compute HDG / EET at '+tas+' kt TAS?\n\nOK = look up · Cancel = keep the coordinates')) return true;
   const {errors}=await fpEnrich(fp,tas);
+  await new Promise(r=>requestAnimationFrame(()=>setTimeout(r,250)));   // let the table and the progress pill repaint before a blocking alert
   if(errors.length) alert('Not everything could be looked up:\n• '+errors.join('\n• ')+'\n\nFill those cells by hand or import again later.');
   return true;
 }
@@ -2336,7 +2337,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="takeoff_calc.js" defer></script>
-<script src="skydemon_fp.js?v=9" defer></script>
+<script src="skydemon_fp.js?v=10" defer></script>
 <script src="plan_sync.js?v=39" defer></script>
 
 </body>
