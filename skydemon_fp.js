@@ -425,7 +425,7 @@ window.velisFp = (function(){
     const headers={};
     if(opts.aipKey) headers['X-OpenAIP-Key']=opts.aipKey;
     const r=await fetch(opts.apiBase+'/aip/airports?lat='+ll[0].toFixed(5)+'&lon='+ll[1].toFixed(5)+'&dist=3000',{headers,credentials:'include'});
-    if(r.status===401) throw new Error('sign in to resolve airfield names');
+    if(r.status===401) throw new Error('sign in first — ICAO codes and elevations come from openAIP');
     if(!r.ok){let m='';try{m=(await r.json()).error||'';}catch(e){}throw new Error(m||('backend answered '+r.status));}
     const j=await r.json();
     return (j.items&&j.items[0])||null;
@@ -484,7 +484,7 @@ window.velisFp = (function(){
       if(name) used.add(name);
       seen.set(k,res); out[i]=res;
     }
-    if(aipDown&&out.some((r,i)=>points[i].isAirfield&&r&&r.name)) errors.splice(errors.findIndex(e=>/^openAIP/.test(e)),1);   // OSM covered it
+    if(aipDown&&out.some((r,i)=>points[i].isAirfield&&r&&r.name&&r.ident)) errors.splice(errors.findIndex(e=>/^openAIP/.test(e)),1);   // OSM covered it, ICAO included
     return {names:out,decl,errors};
   }
 
