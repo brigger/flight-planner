@@ -37,7 +37,8 @@
     </div>
     <span class="sep">|</span>
     <button id="btn-import">Import…</button>
-    <button id="btn-gpx" title="Share the route as GPX — pick SkyDemon in the share sheet, or save the file">Share GPX</button>
+    <button id="btn-fp" title="Share the route as a SkyDemon .flightplan file — open it on the iPad and SkyDemon loads the route with its levels">Share to SkyDemon</button>
+    <button id="btn-gpx" title="Share the route as GPX — for other EFBs (no levels)">GPX</button>
     <button id="btn-clear">Clear form</button>
     <button id="btn-print" class="primary">Print</button>
     <span class="grow"></span>
@@ -221,11 +222,26 @@
   <div class="plan-modal-box" style="min-width:560px;max-width:600px;">
     <h3>Import from Sky Demon</h3>
     <div class="seg import-seg">
-      <button type="button" data-import-mode="text" class="on">Paste text</button>
+      <button type="button" data-import-mode="file" class="on">.flightplan file</button>
+      <button type="button" data-import-mode="text">Paste text</button>
       <button type="button" data-import-mode="image">Screenshot</button>
     </div>
 
-    <div class="import-pane" data-pane="text">
+    <div class="import-pane" data-pane="file">
+      <p class="hint">In SkyDemon open the route, tap <b>Share</b> and send the <b>.flightplan</b> file to this device (AirDrop, Mail, Files), then pick it here — or drop it anywhere on this page. The file holds only coordinates and levels: names come from openAIP and OpenStreetMap, winds aloft from Open-Meteo for the plan's date and start time, HDG and EET are computed at the cruise TAS below. Header fields (ACFT, Pilot, RWY, QNH…) are not touched. GPX files work too.</p>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:0 0 8px;font-size:13px">
+        <label>Cruise TAS <input type="number" id="import-fp-tas" min="40" max="300" step="1" style="width:4.5em"> kt</label>
+        <span class="sub" id="import-fp-when" style="opacity:.75"></span>
+      </div>
+      <input type="file" id="import-fp-file" hidden>
+      <div class="import-drop" id="import-fp-drop">
+        <div><strong>Choose a .flightplan file…</strong></div>
+        <div class="sub">SkyDemon .flightplan or .gpx — or drag &amp; drop</div>
+      </div>
+      <p class="import-status" id="import-fp-status"></p>
+    </div>
+
+    <div class="import-pane" data-pane="text" hidden>
       <p class="hint">Paste the nav-log text copied from Sky Demon. Waypoints replace the current route; header fields (ACFT, Pilot, RWY, QNH…) are not touched.</p>
       <textarea id="import-ta" class="import-ta" spellcheck="false" placeholder="SR 04:35 Z, MCT 04:03 Z    MSA    Level    TAS    Trk    Wind    Hdg    GS    Dist    Time …"></textarea>
     </div>
@@ -269,6 +285,7 @@ const DEFAULT_STATE=()=>({
   comments:'',
   totalsRemark:{u:'',l:''},
   end:{ff:'',tf:'',tripT:'',altT:'',extraT:'',tripManual:false},
+  source:null,                     // SkyDemon file this route came from — see applyFpImport()
   meta:{id:null,name:'',dirty:false}
 });
 
@@ -330,6 +347,7 @@ function loadState(){
       comments:s.comments||'',
       totalsRemark:normTotalsRemark(s.totalsRemark),
       end:{...d.end,...(s.end||{})},
+      source:(s.source&&s.source.key)?{...s.source}:null,
       meta:{...d.meta,...(s.meta||{})}};
   }catch(e){return DEFAULT_STATE();}
 }
@@ -937,52 +955,81 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
 });
 document.getElementById('btn-print').addEventListener('click',()=>window.print());
 
-/* ═══ GPX EXPORT — SkyDemon (and most EFBs) import GPX routes. Only rows
-   with coordinates are included; names come from the WAYPOINT column. ═══ */
-document.getElementById('btn-gpx').addEventListener('click',()=>{
+/* ═══ ROUTE EXPORT — SkyDemon .flightplan (route + levels, opens directly in
+   SkyDemon) and GPX (other EFBs). Only rows with coordinates are included;
+   names come from the WAYPOINT column. The XML is built by skydemon_fp.js. ═══ */
+function routePointsForExport(){
   const pts=[];
   state.route.forEach((r,i)=>{
     const ll=parseCoordStr(r.coord);
-    if(ll) pts.push({ll,name:(r.wp||'').trim()||(r.ident||'').trim()||('WP '+(i+1))});
+    if(!ll) return;
+    const ident=(r.ident||'').trim().toUpperCase();
+    pts.push({ll,name:(r.wp||'').trim()||(r.ident||'').trim()||('WP '+(i+1)),
+      isAirfield:/^[A-Z]{4}$/.test(ident),alt:window.velisWp.parseAlt(r.alt)});
   });
+  return pts;
+}
+function exportRouteName(pts){
+  return (state.source&&state.source.name)||(state.meta&&state.meta.name)||((pts[0].name||'Route')+' - '+(pts[pts.length-1].name||''));
+}
+const safeFileName=name=>(String(name).replace(/[^\w\-. ]+/g,'_').trim()||'route');
+// Native share sheet first — WebKit only lets an allowlist of MIME types
+// through canShare, so probe from most to least specific; the filename
+// extension is what the receiving app keys on. Falls back to a download.
+function shareRouteFile(text,fname,types,title){
+  let file=null;
+  if(navigator.canShare){
+    for(const t of types){
+      const f=new File([text],fname,{type:t});
+      if(navigator.canShare({files:[f]})){file=f;break;}
+    }
+  }
+  if(file){
+    navigator.share({files:[file],title}).catch(e=>{
+      if(e&&e.name==='AbortError') return;      // user closed the sheet
+      _downloadText(text,fname,types[0]);
+    });
+    return;
+  }
+  _downloadText(text,fname,types[0]);
+}
+function _downloadText(text,fname,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([text],{type}));
+  a.download=fname;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+}
+document.getElementById('btn-fp').addEventListener('click',()=>{
+  const pts=routePointsForExport();
   if(pts.length<2){
-    alert('Need at least two waypoints with coordinates to export.\nImport from Sky Demon with coordinates, or add points on the Map.');
+    alert('Need at least two waypoints with coordinates to export.\nImport a SkyDemon route or add points on the Map.');
+    return;
+  }
+  const name=exportRouteName(pts);
+  let xml;
+  try{
+    const a=state.altn, all=parseCoordStr(a&&a.coord);
+    xml=window.velisFp.buildFlightplan({points:pts,level:(state.source&&state.source.level)||null,
+      alternate:all?{ll:all,name:(a.wp||'').trim()||(a.ident||'').trim(),alt:window.velisWp.parseAlt(a.alt)}:null});
+  }catch(e){alert((e&&e.message)||String(e));return;}
+  shareRouteFile(xml,safeFileName(name)+'.flightplan',['application/xml','text/xml','text/plain'],name);
+});
+document.getElementById('btn-gpx').addEventListener('click',()=>{
+  const pts=routePointsForExport();
+  if(pts.length<2){
+    alert('Need at least two waypoints with coordinates to export.\nImport a SkyDemon route or add points on the Map.');
     return;
   }
   const escX=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const name=(state.meta&&state.meta.name)||((pts[0].name||'Route')+' - '+(pts[pts.length-1].name||''));
+  const name=exportRouteName(pts);
   const gpx='<?xml version="1.0" encoding="UTF-8"?>\n'
     +'<gpx version="1.1" creator="Flight Planner (brigger.com)" xmlns="http://www.topografix.com/GPX/1/1">\n'
     +'  <rte>\n    <name>'+escX(name)+'</name>\n'
     +pts.map(p=>'    <rtept lat="'+p.ll[0].toFixed(6)+'" lon="'+p.ll[1].toFixed(6)+'"><name>'+escX(p.name)+'</name></rtept>').join('\n')
     +'\n  </rte>\n</gpx>\n';
-  const fname=(name.replace(/[^\w\-. ]+/g,'_').trim()||'route')+'.gpx';
-  // Native share sheet first — WebKit only lets an allowlist of MIME types
-  // through canShare (gpx+xml is rejected), so probe from most to least
-  // specific; the .gpx filename is what the receiving app keys on.
-  let file=null;
-  if(navigator.canShare){
-    for(const t of ['application/gpx+xml','application/xml','text/xml','text/plain']){
-      const f=new File([gpx],fname,{type:t});
-      if(navigator.canShare({files:[f]})){file=f;break;}
-    }
-  }
-  if(file){
-    navigator.share({files:[file],title:name}).catch(e=>{
-      if(e&&e.name==='AbortError') return;      // user closed the sheet
-      _gpxDownload(gpx,fname);
-    });
-    return;
-  }
-  _gpxDownload(gpx,fname);
+  shareRouteFile(gpx,safeFileName(name)+'.gpx',['application/gpx+xml','application/xml','text/xml','text/plain'],name);
 });
-function _gpxDownload(gpx,fname){
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([gpx],{type:'application/gpx+xml'}));
-  a.download=fname;
-  document.body.appendChild(a);a.click();
-  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
-}
 
 
 /* ═══ View toggle (NAV Plan / Endurance) ═══ */
@@ -1749,7 +1796,7 @@ function rowsToParsed(rows){
   });
 }
 
-let importMode='text';
+let importMode='file';
 const importBtn=document.getElementById('import-do');
 const importStatusEl=document.getElementById('import-img-status');
 const importDrop=document.getElementById('import-drop');
@@ -1879,20 +1926,28 @@ document.getElementById('import-img-signin').addEventListener('click',(e)=>{
   if(window.velisPlan&&window.velisPlan.openAuth) window.velisPlan.openAuth();
 });
 
-document.getElementById('btn-import').addEventListener('click',()=>{
+function openImportModal(mode){
   document.getElementById('import-ta').value='';
   importFile.value='';
   importDrop.classList.remove('has-file');
   setDropName('Choose a screenshot…', 'PNG, JPEG, WebP — max 8 MB');
   setImportStatus('');
-  setImportMode('text');
+  fpReset();
+  setImportMode(mode||'file');
   document.getElementById('import-modal').hidden=false;
-});
+}
+document.getElementById('btn-import').addEventListener('click',()=>openImportModal('file'));
 document.getElementById('import-cancel').addEventListener('click',()=>{
   document.getElementById('import-modal').hidden=true;
 });
 
 importBtn.addEventListener('click',async()=>{
+  if(importMode==='file'){
+    if(!fpPending){setFpStatus('Choose a .flightplan file first.',true);return;}
+    importBtn.disabled=true;
+    try{await importFlightplanFile(fpPending);}finally{importBtn.disabled=false;}
+    return;
+  }
   if(importMode==='text'){
     const text=document.getElementById('import-ta').value;
     const parsed=parseSkyDemon(text);
@@ -1939,6 +1994,247 @@ importBtn.addEventListener('click',async()=>{
   }
 });
 
+/* ═════════════════════════════════════════════════════════════════════
+   SKYDEMON .flightplan IMPORT — file picker + page-wide drag & drop.
+   Parsing and geometry live in skydemon_fp.js (window.velisFp); this block
+   turns the parsed route into NAV rows and decides whether to update the
+   loaded plan in place or start a fresh one.
+   ═════════════════════════════════════════════════════════════════════ */
+const fpFile=document.getElementById('import-fp-file');
+const fpDrop=document.getElementById('import-fp-drop');
+const fpStatusEl=document.getElementById('import-fp-status');
+let fpPending=null;   // File picked in the modal, not imported yet
+function setFpStatus(msg,err){fpStatusEl.textContent=msg||'';fpStatusEl.classList.toggle('err',!!err);}
+function setFpDropName(label,sub){
+  const strong=document.createElement('strong');strong.textContent=label;
+  fpDrop.firstElementChild.replaceChildren(strong);
+  fpDrop.lastElementChild.textContent=sub;
+}
+function fpReset(){
+  fpPending=null;fpFile.value='';
+  document.getElementById('import-fp-tas').value=fpTasDefault();
+  const w=fpWhen();
+  document.getElementById('import-fp-when').textContent='Winds for '+fpFmtWhen(w.when)+(w.note?' ('+w.note+')':'');
+  fpDrop.classList.remove('has-file');
+  setFpDropName('Choose a .flightplan file…','SkyDemon .flightplan or .gpx — or drag & drop');
+  setFpStatus('');
+}
+function fpChoose(file){
+  if(!file){fpReset();return;}
+  fpPending=file;
+  fpDrop.classList.add('has-file');
+  setFpDropName(file.name,(file.size/1024).toFixed(0)+' KB · click to change');
+  setFpStatus('');
+}
+const isRouteFile=f=>!!f&&/\.(flightplan|gpx)$/i.test(f.name||'');
+fpDrop.addEventListener('click',()=>fpFile.click());
+fpFile.addEventListener('change',()=>fpChoose(fpFile.files&&fpFile.files[0]));
+['dragenter','dragover'].forEach(ev=>fpDrop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();fpDrop.classList.add('has-file');}));
+fpDrop.addEventListener('dragleave',()=>{if(!fpPending) fpDrop.classList.remove('has-file');});
+fpDrop.addEventListener('drop',e=>{
+  e.preventDefault();e.stopPropagation();
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(f) fpChoose(f);
+});
+// A .flightplan / .gpx dropped anywhere on the page goes straight into the import.
+document.addEventListener('dragover',e=>{
+  if(e.dataTransfer&&Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+});
+document.addEventListener('drop',e=>{
+  const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];
+  if(!isRouteFile(f)) return;
+  e.preventDefault();
+  openImportModal('file');
+  fpChoose(f);
+  importFlightplanFile(f);
+});
+
+async function importFlightplanFile(file){
+  if(!window.velisFp){setFpStatus('Import module not loaded — reload the page and try again.',true);return false;}
+  let fp;
+  try{
+    fp=window.velisFp.parseFlightplan(await file.text(),file.name);
+  }catch(e){
+    setFpStatus((e&&e.message)||'Could not read the file.',true);
+    return false;
+  }
+  const ok=await applyFpImport(fp);
+  if(!ok) return false;
+  // Step 1 done: the route is on screen. Step 2 is the pilot's call — it
+  // talks to openAIP / OpenStreetMap / Photon / Open-Meteo.
+  const tas=parseFloat(document.getElementById('import-fp-tas').value)||fpTasDefault();
+  const {when}=fpWhen();
+  document.getElementById('import-modal').hidden=true;
+  if(!confirm('Route imported with '+state.route.length+' waypoints.\n\nLook up names, airfield elevations and winds aloft for '+fpFmtWhen(when)+' now, and compute HDG / EET at '+tas+' kt TAS?\n\nOK = look up · Cancel = keep the coordinates')) return true;
+  const {errors}=await fpEnrich(fp,tas);
+  if(errors.length) alert('Not everything could be looked up:\n• '+errors.join('\n• ')+'\n\nFill those cells by hand or import again later.');
+  return true;
+}
+
+// What to do with an imported route:
+//   · same SkyDemon route as the plan on screen (state.source) → update the
+//     rows in place, keeping the pilot's frequencies/remarks and the plan id,
+//     so Save overwrites that plan;
+//   · a saved plan on the server was made from this route → offer to open it
+//     and update it the same way;
+//   · otherwise replace the route and detach from any loaded plan, so Save
+//     becomes Save-as with the SkyDemon route name suggested.
+async function applyFpImport(fp){
+  const parsed=window.velisFp.toParsedRows(fp);
+  if(parsed.length<2){alert('Could not find at least 2 waypoints in the file.');return false;}
+  const key=fp.key;
+  if(state.source&&state.source.key===key){
+    fpApplyRows(fp,parsed,true);
+    return true;
+  }
+  const vp=window.velisPlan;
+  if(vp&&vp.user&&vp.findPlanBySource){
+    let match=null;
+    try{match=await vp.findPlanBySource(key);}catch(e){}
+    if(match&&String(match.id)!==String(state.meta&&state.meta.id)){
+      if(confirm(`Your saved plan "${match.name}" was created from this SkyDemon route.\n\nOK = open that plan and update it with this version.\nCancel = import into the form on screen instead.`)){
+        try{await vp.openPlan(match.id);}catch(e){alert('Could not open the saved plan: '+((e&&e.message)||e));return false;}
+        // openPlan fired velis:after-load → `state` is now the saved plan.
+        fpApplyRows(fp,parsed,true);
+        return true;
+      }
+    }
+  }
+  const hasContent=state.route.some(r=>r.wp||r.ident||r.freq||r.hdg||r.dist||r.alt||r.eet||r.wind||r.remark);
+  if(hasContent&&!confirm(`Replace the current route with ${parsed.length} waypoints from "${fp.name}"?`)) return false;
+  const loadedId=state.meta&&state.meta.id;
+  fpApplyRows(fp,parsed,false);
+  if(loadedId){
+    // A different route than the loaded plan — don't let Save overwrite it.
+    vp&&vp.detachPlan&&vp.detachPlan();
+    state.meta={...(state.meta||{}),id:null,name:'',archived:false,dirty:true};
+    saveLocal();
+    vp&&vp.updateStatus&&vp.updateStatus();
+  }
+  return true;
+}
+function fpApplyRows(fp,parsed,merge){
+  let prevAlt=null;
+  let rows=parsed.map(w=>{const {leg,curAlt}=wpFromSkyDemon(w,prevAlt);prevAlt=curAlt;return leg;});
+  if(merge){
+    rows=window.velisFp.mergeRoute(state.route,rows,parseCoordStr);
+    for(let i=1;i<rows.length;i++){   // trends again — DEP/DEST keep their elevation across the merge
+      const a=window.velisWp.parseAlt(rows[i-1].alt), b=window.velisWp.parseAlt(rows[i].alt);
+      rows[i].altTrend=(a==null||b==null||a===b)?'':(b>a?'up':'down');
+    }
+  }
+  state.route=rows;
+  const altn=window.velisFp.toAltnRow(fp);
+  if(altn){
+    const {leg}=wpFromSkyDemon(altn,null);
+    state.altn={...state.altn,wp:leg.wp,ident:leg.ident||state.altn.ident,coord:leg.coord,alt:leg.alt,dist:leg.dist,hdg:leg.hdg};
+  }
+  state.source={kind:fp.format,key:fp.key,name:fp.name,level:fp.level,importedAt:new Date().toISOString()};
+  applyLspgDefaults();
+  state.meta={...(state.meta||{id:null,name:'',dirty:false}),dirty:true};
+  saveLocal();
+  window.velisPlan&&window.velisPlan.markDirty();
+  if(typeof scheduleRpPush==='function') scheduleRpPush();   // keep the Route Planner in step
+  renderWP();refreshTotals();
+}
+
+/* ─── Enrichment after a file import: names, winds, HDG, EET ───
+   The .flightplan carries only coordinates + levels (see skydemon_fp.js).
+   Rows are 1:1 with fp.points, so index i of state.route is point i. */
+const FP_TAS_KEY='velis_import_tas_da20', FP_TAS_DEFAULT=110, FP_MAGVAR_DEFAULT=3;   // °E — Swiss plateau 2026
+const FP_API_BASE=(typeof window.VELIS_API_BASE==='string')?window.VELIS_API_BASE:'/flight-planner/api';
+function fpTasDefault(){const v=parseFloat(localStorage.getItem(FP_TAS_KEY));return isFinite(v)&&v>0?v:FP_TAS_DEFAULT;}
+const fpFmtWhen=d=>d.getDate()+'.'+(d.getMonth()+1)+'.'+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':00';
+// Forecast hour: header DATE + START (local), rounded to the hour; falls back
+// to the next full hour when missing or outside Open-Meteo's forecast window.
+function fpWhen(){
+  const now=new Date();
+  const dm=String(state.hdr.date||'').trim().match(/^(\d{1,2})[./](\d{1,2})[./](\d{2,4})$/);
+  const tm=String(state.hdr.startT||'').trim().match(/^(\d{1,2})[:h.]?(\d{2})?$/);
+  let when=null, note='';
+  if(dm){const y=+dm[3]<100?2000+ +dm[3]:+dm[3];when=new Date(y,+dm[2]-1,+dm[1],tm?+tm[1]:10,tm?+(tm[2]||0):0);}
+  if(!when||isNaN(when)){when=new Date(now.getTime()+3600e3);note='no date / start time in the header, using the next hour';}
+  else if(when<now-86400e3||when>now+15*86400e3){when=new Date(now.getTime()+3600e3);note='plan date outside the forecast range, using the next hour';}
+  if(when.getMinutes()>=30) when=new Date(when.getTime()+3600e3);
+  when.setMinutes(0,0,0);
+  return {when,note};
+}
+// Progress while the lookups run — the modal is already closed by then.
+function fpProgress(msg){
+  let el=document.getElementById('fp-progress');
+  if(!el){
+    el=document.createElement('div');el.id='fp-progress';
+    el.style.cssText='position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:3000;background:#1F2A44;color:#fff;font:13px/1.4 system-ui,sans-serif;padding:8px 16px;border-radius:999px;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none;transition:opacity .2s;';
+    document.body.appendChild(el);
+  }
+  el.textContent=msg||'';
+  el.style.opacity=msg?'1':'0';
+}
+async function fpEnrich(fp,tas){
+  const F=window.velisFp, rows=state.route, n=rows.length, errors=[];
+  localStorage.setItem(FP_TAS_KEY,String(tas));
+  const setFpStatus=fpProgress;   // shadow the modal status: progress goes to the floating pill
+  // 1. names + elevations + declination
+  const aipKey=localStorage.getItem('velis_openaip_key')||'';
+  const look=await F.lookupNames(fp.points,{apiBase:FP_API_BASE,aipKey,onStatus:setFpStatus});
+  errors.push(...look.errors);
+  look.names.forEach((nm,i)=>{
+    const r=rows[i]; if(!nm||!r) return;
+    const unnamed=!(r.wp||'').trim()||!!F.parseSdCoord(r.wp);
+    if(nm.ident&&!(r.ident||'').trim()) r.ident=nm.ident;
+    if(nm.name&&unnamed) r.wp=nm.name;
+    if(nm.elevFt!=null&&(i===0||i===n-1)) r.alt=String(nm.elevFt);
+  });
+  // DEP / DEST rows hold the airfield elevation; without openAIP fall back to terrain height.
+  const needElev=[...new Set([0,n-1])].filter(i=>fp.points[i]&&fp.points[i].isAirfield&&!(look.names[i]&&look.names[i].elevFt!=null));
+  if(needElev.length){
+    try{
+      setFpStatus('Looking up airfield elevation…');
+      const el=await F.fetchElevationFt(needElev.map(i=>fp.points[i].ll));
+      needElev.forEach((i,k)=>{if(el[k]!=null) rows[i].alt=String(el[k]);});
+    }catch(e){errors.push('Elevation: '+((e&&e.message)||e));}
+  }
+  // 2. winds at each leg midpoint, at the leg's altitude
+  const {when,note}=fpWhen();
+  const lls=rows.map(r=>parseCoordStr(r.coord));
+  const mids=[];
+  for(let i=1;i<n;i++){
+    const a=lls[i-1], b=lls[i];
+    // leg altitude for the wind: the higher end — DEP/DEST rows hold the airfield elevation
+    const altA=window.velisWp.parseAlt(rows[i-1].alt), altB=window.velisWp.parseAlt(rows[i].alt);
+    mids.push(a&&b?{ll:[(a[0]+b[0])/2,(a[1]+b[1])/2],altFt:altA==null?altB:(altB==null?altA:Math.max(altA,altB))}:null);
+  }
+  let winds=null;
+  try{
+    setFpStatus('Fetching winds aloft for '+fpFmtWhen(when)+'…');
+    winds=await F.fetchWindsAloft(mids.filter(Boolean),when);
+  }catch(e){errors.push('Winds: '+((e&&e.message)||e));}
+  // 3. magnetic variation: openAIP's aerodrome value, else the last one seen, else the default
+  let decl=look.decl;
+  if(decl!=null) localStorage.setItem('velis_mag_var',String(decl));
+  else{const v=parseFloat(localStorage.getItem('velis_mag_var'));decl=isFinite(v)?v:null;}
+  const declAssumed=decl==null; if(declAssumed) decl=FP_MAGVAR_DEFAULT;   // HDG then carries the default variation
+  // 4. HDG / WIND / EET per leg, climb/descent trends from the altitudes
+  let wi=0;
+  for(let i=1;i<n;i++){
+    const m=mids[i-1]; if(!m) continue;
+    const w=winds?winds[wi]:null; wi++;
+    Object.assign(rows[i],F.legFromWind(lls[i-1],lls[i],w,tas,decl));
+  }
+  for(let i=1;i<n;i++){
+    const a=window.velisWp.parseAlt(rows[i-1].alt), b=window.velisWp.parseAlt(rows[i].alt);
+    rows[i].altTrend=(a==null||b==null||a===b)?'':(b>a?'up':'down');
+  }
+  state.source={...(state.source||{}),tas,windsAt:winds?when.toISOString():null,windsNote:note||'',decl,declAssumed};
+  applyLspgDefaults();
+  saveLocal();
+  window.velisPlan&&window.velisPlan.markDirty();
+  if(typeof scheduleRpPush==='function') scheduleRpPush();
+  renderWP();refreshEndurance();
+  fpProgress('');
+  return {errors};
+}
+
 /* ═══ Init ═══ */
 applyModeUI();            // static fuel-mode labels + TO/LDG visibility (set once)
 seedEnduranceDefaults();  // one-time FF/alt/extra defaults + initial trip auto-fill
@@ -1979,7 +2275,8 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="da20_takeoff_calc.js" defer></script>
-<script src="plan_sync.js?v=38" defer></script>
+<script src="skydemon_fp.js?v=7" defer></script>
+<script src="plan_sync.js?v=39" defer></script>
 
 </body>
 </html>

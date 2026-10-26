@@ -748,9 +748,26 @@ window.velisWp = (function(){
       const raw=localStorage.getItem(navStateKey());
       if(!raw) return '';
       const s=JSON.parse(raw);
-      return (s&&s.hdr&&s.hdr.ident)||'';
+      // A route imported from a SkyDemon file is named after that file.
+      return (s&&s.source&&s.source.name)||(s&&s.hdr&&s.hdr.ident)||'';
     }catch(e){return '';}
   }
+
+  /* ─── SkyDemon-file import support (NAV Plan pages, see skydemon_fp.js) ─── */
+  // The newest non-archived plan of the active aircraft whose NAV route was
+  // imported from the SkyDemon file with this key (the backend exposes it as
+  // source_key on the plan list), or null.
+  async function findPlanBySource(key){
+    if(!currentUser||!key) return null;
+    const plans=await api('/plans');
+    const acId=activeAircraft().id;
+    return plans.find(p=>p.source_key===key&&!p.archived_at&&(p.aircraft||'velis')===acId)||null;
+  }
+  async function openPlan(id){
+    applyPlanData(await api(`/plans/${id}`));
+  }
+  // Forget which saved plan is loaded, so the next Save is a Save-as.
+  function detachPlan(){persistMeta({id:null,name:''});repaint();}
 
   // Apply a fetched plan {id,name,aircraft,plan_json} to the app — used by the
   // Load dialog and the Dashboard's Open button. own:false = someone else's
@@ -1095,6 +1112,7 @@ window.velisWp = (function(){
 
   window.velisPlan = {
     save:doSave, saveAs:doSaveAs, load:doLoad, newPlan:doNew, applyPlanData, setMetaArchived,
+    findPlanBySource, openPlan, detachPlan,
     openSettings:openAuthModal,  // legacy alias
     openAuth:openAuthModal, logout:doLogout,
     markDirty:markBundleDirty, markSaved:markBundleSaved,

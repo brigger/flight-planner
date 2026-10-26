@@ -6,7 +6,11 @@ import pathlib
 import secrets
 import smtplib
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
+from math import asin, cos, radians, sin, sqrt
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from functools import wraps
@@ -657,8 +661,11 @@ def ping():
 @require_user
 def list_plans():
     c = conn(); cur = c.cursor(dictionary=True)
+    # source_key: the SkyDemon .flightplan a NAV route was imported from
+    # (navplan.source.key in the bundle) — lets a re-import find its plan.
     cur.execute(
-        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, archived_at "
+        "SELECT id, name, COALESCE(aircraft,'velis') AS aircraft, updated_at, archived_at, "
+        "JSON_UNQUOTE(JSON_EXTRACT(plan_json, '$.navplan.source.key')) AS source_key "
         "FROM flight_plans WHERE user_id = %s ORDER BY updated_at DESC",
         (request.user["id"],),
     )
@@ -666,6 +673,8 @@ def list_plans():
     for r in rows:
         r["updated_at"] = r["updated_at"].isoformat()
         r["archived_at"] = r["archived_at"].isoformat() if r["archived_at"] else None
+        if r["source_key"] in ("", "null"):
+            r["source_key"] = None
     cur.close(); c.close()
     return jsonify(rows)
 
@@ -909,6 +918,73 @@ def put_config():
     cur.execute("REPLACE INTO app_settings (k, v) VALUES ('openaip_key', %s)", (key or None,))
     cur.close(); c.close()
     return {"ok": True, "set": bool(key)}
+
+
+# ── openAIP proxy ──────────────────────────────────────────────────────
+# The openAIP REST API refuses cross-origin browser reads, so the NAV Plan's
+# .flightplan import resolves aerodromes (ICAO, name, elevation, magnetic
+# declination) through this proxy. The family key from app_settings is used
+# unless the caller sends a personal key in X-OpenAIP-Key.
+OPENAIP_API = "https://api.core.openaip.net/api"
+
+
+def _dist_nm(lat1, lon1, lat2, lon2):
+    dlat = radians(lat2 - lat1); dlon = radians(lon2 - lon1)
+    h = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * 3440.065 * asin(sqrt(h))
+
+
+@app.get("/api/aip/airports")
+@require_user
+@limiter.limit(os.getenv("RATELIMIT_AIP", "120/hour"))
+def aip_airports():
+    try:
+        lat = float(request.args.get("lat", "")); lon = float(request.args.get("lon", ""))
+        dist = int(float(request.args.get("dist", 3000) or 3000))
+    except ValueError:
+        abort(400)
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        abort(400)
+    dist = max(100, min(20000, dist))
+    key = (request.headers.get("X-OpenAIP-Key") or "").strip()[:120]
+    if not key:
+        c = conn(); cur = c.cursor(dictionary=True)
+        cur.execute("SELECT v FROM app_settings WHERE k = 'openaip_key'")
+        row = cur.fetchone()
+        cur.close(); c.close()
+        key = (row and row["v"]) or ""
+    if not key:
+        return jsonify({"error": "no openAIP key configured"}), 503
+    q = urllib.parse.urlencode({"pos": f"{lat:.5f},{lon:.5f}", "dist": dist, "limit": 5})
+    req = urllib.request.Request(f"{OPENAIP_API}/airports?{q}",
+                                 headers={"x-openaip-api-key": key, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        log.warning("openAIP proxy: HTTP %s", e.code)
+        return jsonify({"error": f"openAIP answered {e.code}"}), 502
+    except Exception as e:  # noqa: BLE001
+        log.warning("openAIP proxy: %s", e)
+        return jsonify({"error": "openAIP unreachable"}), 502
+    items = []
+    for a in (data.get("items") or []) if isinstance(data, dict) else []:
+        geom = ((a.get("geometry") or {}).get("coordinates") or [None, None])
+        alon, alat = (geom + [None, None])[:2]
+        elev = a.get("elevation") or {}
+        ev, unit = elev.get("value"), elev.get("unit")
+        elev_ft = None
+        if isinstance(ev, (int, float)):
+            elev_ft = round(ev * 3.28084) if unit in (0, None) else round(ev)   # openAIP: 0 = m, 1 = ft
+        decl = a.get("magneticDeclination")
+        items.append({
+            "name": a.get("name") or "", "icao": a.get("icaoCode") or "",
+            "elevFt": elev_ft, "decl": decl if isinstance(decl, (int, float)) else None,
+            "type": a.get("type"), "lat": alat, "lon": alon,
+            "distNm": round(_dist_nm(lat, lon, alat, alon), 2) if isinstance(alat, (int, float)) and isinstance(alon, (int, float)) else None,
+        })
+    items.sort(key=lambda x: x["distNm"] if x["distNm"] is not None else 1e9)
+    return jsonify({"items": items})
 
 
 # ── personal frequency directory ───────────────────────────────────────
