@@ -956,17 +956,36 @@ def aip_airports():
     if not key:
         return jsonify({"error": "no openAIP key configured"}), 503
     q = urllib.parse.urlencode({"pos": f"{lat:.5f},{lon:.5f}", "dist": dist, "limit": 5})
-    req = urllib.request.Request(f"{OPENAIP_API}/airports?{q}",
-                                 headers={"x-openaip-api-key": key, "Accept": "application/json"})
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        log.warning("openAIP proxy: HTTP %s", e.code)
-        return jsonify({"error": f"openAIP answered {e.code}"}), 502
-    except Exception as e:  # noqa: BLE001
-        log.warning("openAIP proxy: %s", e)
-        return jsonify({"error": "openAIP unreachable"}), 502
+    # openAIP sits behind a CDN that rejects the default Python user agent
+    # (403), so identify ourselves. The key goes in the header first; if that
+    # is refused, the documented apiKey query parameter is tried once.
+    ua = "FlightPlanner/1.0 (+https://www.brigger.com/flight-planner/)"
+    attempts = [
+        (f"{OPENAIP_API}/airports?{q}", {"x-openaip-api-key": key, "Accept": "application/json", "User-Agent": ua}),
+        (f"{OPENAIP_API}/airports?{q}&apiKey={urllib.parse.quote(key)}", {"Accept": "application/json", "User-Agent": ua}),
+    ]
+    data, last = None, None
+    for url, headers in attempts:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            body = ""
+            try:
+                body = e.read().decode("utf-8", "replace")[:200].replace(key, "<key>")
+            except Exception:  # noqa: BLE001
+                pass
+            log.warning("openAIP proxy: HTTP %s %s", e.code, body)
+            last = jsonify({"error": f"openAIP answered {e.code}"}), 502
+            if e.code not in (401, 403):
+                break
+        except Exception as e:  # noqa: BLE001
+            log.warning("openAIP proxy: %s", e)
+            last = jsonify({"error": "openAIP unreachable"}), 502
+            break
+    if data is None:
+        return last
     items = []
     for a in (data.get("items") or []) if isinstance(data, dict) else []:
         geom = ((a.get("geometry") or {}).get("coordinates") or [None, None])
