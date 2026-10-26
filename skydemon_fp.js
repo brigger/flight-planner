@@ -420,8 +420,28 @@ window.velisFp = (function(){
     return name||icao?{icao:/^[A-Z]{4}$/.test(icao)?icao:'',name,elevFt:null}:null;
   }
 
-  // Nearest aerodrome via the backend proxy → {icao,name,elevFt,decl}|null.
+  // Nearest aerodrome → {icao,name,elevFt,decl}|null. openAIP's CDN refuses
+  // requests from server IPs (HTTP 403 for any key), so the browser asks
+  // openAIP directly with the key it already holds for the map tiles; the
+  // backend proxy is the fallback when there is no key in the browser.
+  function aipItem(a){
+    const el=a.elevation||{}, ev=el.value;
+    const elevFt=typeof ev==='number'?(el.unit===1?Math.round(ev):Math.round(ev*3.28084)):null;   // openAIP: 0 = m, 1 = ft
+    const c=(a.geometry&&a.geometry.coordinates)||[];
+    return {icao:a.icaoCode||'',name:a.name||'',elevFt,decl:typeof a.magneticDeclination==='number'?a.magneticDeclination:null,lat:c[1],lon:c[0]};
+  }
   async function lookupAerodrome(ll,opts){
+    const pos=ll[0].toFixed(5)+','+ll[1].toFixed(5);
+    if(opts.aipKey){
+      try{
+        const r=await fetch('https://api.core.openaip.net/api/airports?pos='+pos+'&dist=3000&limit=5',{headers:{'x-openaip-api-key':opts.aipKey,'Accept':'application/json'}});
+        if(r.ok){
+          const items=((await r.json()).items||[]).map(aipItem).filter(a=>isFinite(a.lat)&&isFinite(a.lon));
+          items.sort((a,b)=>distNm(ll,[a.lat,a.lon])-distNm(ll,[b.lat,b.lon]));
+          return items[0]||null;
+        }
+      }catch(e){/* CORS or network — fall through to the proxy */}
+    }
     const headers={};
     if(opts.aipKey) headers['X-OpenAIP-Key']=opts.aipKey;
     const r=await fetch(opts.apiBase+'/aip/airports?lat='+ll[0].toFixed(5)+'&lon='+ll[1].toFixed(5)+'&dist=3000',{headers,credentials:'include'});

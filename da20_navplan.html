@@ -691,7 +691,7 @@ async function fetchFreqDir(){
     if(!r.ok) return;
     const rows=await r.json();
     if(Array.isArray(rows)&&rows.length){
-      freqDir=rows.map(x=>({name:x.name,freq:x.freq}));
+      freqDir=rows.map(x=>({name:x.name,freq:x.freq,icao:x.icao||''}));
       localStorage.setItem(FREQ_DIR_KEY,JSON.stringify(freqDir));
       renderFreqDatalist();
     }
@@ -2170,12 +2170,27 @@ function fpProgress(msg){
   el.textContent=msg||'';
   el.style.opacity=msg?'1':'0';
 }
+// "Kägiswil" → "LSPG" via the frequency directory (names there are upper-case,
+// sometimes with a " Info" suffix and umlauts written either way).
+function fpIcaoFromDir(name){
+  const strip=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const ascii=s=>String(s||'').toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss');
+  const want=[strip(name),strip(ascii(name))].filter(Boolean);
+  if(!want.length) return '';
+  const hit=freqDir.find(e=>{
+    if(!/^[A-Z]{4}$/.test(e.icao||'')) return false;
+    const base=String(e.name||'').replace(/\s+(info|tower|twr|gnd|ground|apron|radio)$/i,'');
+    const have=[strip(base),strip(ascii(base))];
+    return want.some(w=>have.includes(w));
+  });
+  return hit?hit.icao:'';
+}
 async function fpEnrich(fp,tas){
   const F=window.velisFp, rows=state.route, n=rows.length, errors=[];
   localStorage.setItem(FP_TAS_KEY,String(tas));
   const setFpStatus=fpProgress;   // shadow the modal status: progress goes to the floating pill
   // 1. names + elevations + declination
-  const aipKey=localStorage.getItem('velis_openaip_key')||'';
+  const aipKey=(window.velisAipKey&&window.velisAipKey())||'';   // personal key, else the family key served after sign-in
   const look=await F.lookupNames(fp.points,{apiBase:FP_API_BASE,aipKey,onStatus:setFpStatus});
   errors.push(...look.errors);
   look.names.forEach((nm,i)=>{
@@ -2183,6 +2198,8 @@ async function fpEnrich(fp,tas){
     const unnamed=!(r.wp||'').trim()||!!F.parseSdCoord(r.wp);
     if(nm.ident&&!(r.ident||'').trim()) r.ident=nm.ident;
     if(nm.name&&unnamed) r.wp=nm.name;
+    // No ICAO from openAIP (or none reachable): the frequency directory knows the local fields.
+    if(!(r.ident||'').trim()&&fp.points[i]&&fp.points[i].isAirfield) r.ident=fpIcaoFromDir(r.wp)||'';
     if(nm.elevFt!=null&&(i===0||i===n-1)) r.alt=String(nm.elevFt);
   });
   // DEP / DEST rows hold the airfield elevation; without openAIP fall back to terrain height.
@@ -2275,7 +2292,7 @@ window.addEventListener('pageshow',renderToLdg);
 document.addEventListener('velis:after-load',renderToLdg);
 </script>
 <script src="da20_takeoff_calc.js" defer></script>
-<script src="skydemon_fp.js?v=8" defer></script>
+<script src="skydemon_fp.js?v=9" defer></script>
 <script src="plan_sync.js?v=39" defer></script>
 
 </body>
